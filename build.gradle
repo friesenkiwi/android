@@ -5,11 +5,9 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:2.1.0-alpha1'
+        classpath 'com.android.tools.build:gradle:2.1.0'
     }
 }
-
-
 
 repositories {
     mavenCentral()
@@ -25,7 +23,6 @@ repositories {
 }
 apply plugin: 'com.android.application'
 
-
 dependencies {
     compile files('libs/kalium-jni-1.0.0-SNAPSHOT.jar')
 
@@ -39,7 +36,6 @@ dependencies {
     compile 'com.google.android.gms:play-services-maps:8.4.0'
     compile 'com.google.android.gms:play-services-location:8.4.0'
     compile 'com.google.android.gms:play-services-base:8.4.0'
-
 
     // Utility libraries
     compile 'de.greenrobot:eventbus:2.4.0'
@@ -105,7 +101,6 @@ android {
             minifyEnabled false
             zipAlignEnabled true
             applicationIdSuffix ''
-
         }
         debug {
             applicationIdSuffix '.debug'
@@ -113,17 +108,14 @@ android {
         }
     }
 
-
     packagingOptions {
         exclude 'META-INF/LICENSE.txt'
         exclude 'META-INF/NOTICE.txt'
         exclude 'META-INF/LICENSE'
         exclude 'META-INF/NOTICE'
         exclude 'META-INF/LICENSE'
-
     }
     dexOptions {
         preDexLibraries = false
     }
-
 }

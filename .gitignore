@@ -22,6 +22,7 @@ local.properties
 proguard/
 .idea/workspace.xml
 .idea/libraries
+.idea/
 
 # Mac
 .DS_Store
@@ -35,4 +36,6 @@ src/main/res/values-v1/keys.xml
 
 apk/
 android.iml
+owntracks-android.iml
 android-release.apk
+DaoGenerator/DaoGenerator.iml
