@@ -5,10 +5,9 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
-import android.database.Cursor;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.preference.Preference;
 import android.preference.PreferenceFragment;
@@ -21,28 +20,27 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
-import android.view.MotionEvent;
 import android.view.View;
-import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.CompoundButton;
-import android.widget.IconTextView;
-import android.widget.LinearLayout;
-import android.widget.Spinner;
 import android.widget.Switch;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.afollestad.materialdialogs.MaterialDialog;
 import com.rengwuxian.materialedittext.MaterialEditText;
 
+import org.owntracks.android.App;
 import org.owntracks.android.R;
 import org.owntracks.android.services.ServiceBroker;
 import org.owntracks.android.services.ServiceProxy;
 import org.owntracks.android.support.ContentPathHelper;
 import org.owntracks.android.support.Events;
 import org.owntracks.android.support.Preferences;
+import org.owntracks.android.support.Toasts;
 
-import java.net.URISyntaxException;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.lang.ref.WeakReference;
 
 import de.greenrobot.event.EventBus;
 
@@ -51,11 +49,11 @@ public class ActivityPreferencesConnection extends ActivityBase {
 
     private static boolean modeSwitch = false;
     public static final String KEY_MODE_CHANGED = "modeChanged";
+    private WeakReference<FragmentPreferences> preferencesFragment;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        final Context context = this;
 
         setContentView(R.layout.activity_preferences);
 
@@ -64,63 +62,28 @@ public class ActivityPreferencesConnection extends ActivityBase {
         getSupportActionBar().setTitle(getTitle());
         getSupportActionBar().setDisplayShowHomeEnabled(true);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        preferencesFragment = new WeakReference<>(new FragmentPreferences());
+        getFragmentManager().beginTransaction().replace(R.id.content_frame, preferencesFragment.get(), "preferences").commit();
 
-        getFragmentManager().beginTransaction().replace(R.id.content_frame, new FragmentPreferences(), "preferences").commit();
-
-    }
-
-
-    public String getPath(Context context, Uri uri) throws URISyntaxException {
-        Log.v(TAG, "uri: " + uri);
-        Log.v(TAG, "shceme: " + uri.getScheme());
-        if ("content".equalsIgnoreCase(uri.getScheme())) {
-            String[] projection = { "_data" };
-            Cursor cursor = null;
-
-
-
-            try {
-                cursor = context.getContentResolver().query(uri, projection, null, null, null);
-                int column_index = cursor.getColumnIndexOrThrow("_data");
-                if (cursor.moveToFirst()) {
-                    return cursor.getString(column_index);
-                }
-            } catch (Exception e) {
-
-            }
-        }
-        else if ("file".equalsIgnoreCase(uri.getScheme())) {
-            return uri.getPath();
-        }
-
-        return null;
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        Log.v(TAG, "onActivityResult" + resultCode);
-        if(resultCode == RESULT_OK && (requestCode == FILE_SELECT_CODE_TLS_CA_CRT_PATH || requestCode == FILE_SELECT_CODE_TLS_CLIENT_CRT_PATH )) {
-                Uri uri = data.getData();
-                String path = ContentPathHelper.getPath(this, uri);
-                Log.v(TAG, "Path: " + path);
 
-                if(path == null || path.equals("")) {
-                    Log.v(TAG, "empty path");
-                    Toast.makeText(this, "Unable to open file", Toast.LENGTH_LONG).show();
-                    return;
-                }
-                switch (requestCode) {
-                    case FILE_SELECT_CODE_TLS_CLIENT_CRT_PATH:
-                        ((FragmentPreferences) getFragmentManager().findFragmentByTag("preferences")).setTlsClientCrtPath(path);
-                        break;
-                    case FILE_SELECT_CODE_TLS_CA_CRT_PATH:
-                        ((FragmentPreferences) getFragmentManager().findFragmentByTag("preferences")).setTlsCaCrtPath(path);
-                        break;
-                }
+        if(resultCode == RESULT_OK && (requestCode == FILE_SELECT_CODE_TLS_CA_CRT_PATH || requestCode == FILE_SELECT_CODE_TLS_CLIENT_CRT_PATH )) {
+            Uri uri = data.getData();
+            Log.v(TAG, "onActivityResult() for uri:  " + uri.toString());
+                if (requestCode == FILE_SELECT_CODE_TLS_CLIENT_CRT_PATH)
+                    new ClientCrtCopyTask(preferencesFragment.get()).execute(uri);
+                else
+                    new CaCrtCopyTask(preferencesFragment.get()).execute(uri);
+
+
         }
 
         super.onActivityResult(requestCode, resultCode, data);
     }
+
 
 
 
@@ -156,14 +119,14 @@ public class ActivityPreferencesConnection extends ActivityBase {
     private static final int FILE_SELECT_CODE_TLS_CLIENT_CRT_PATH = 1;
     private static final int FILE_SELECT_CODE_TLS_CA_CRT_PATH = 2;
 
-    private static void showFileChooser(Activity c, int tag) {
+
+    private void showFileChooser(int tag) {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-       // intent.setType("text/*, application/text, application/x-pem-file, application/x-x509-ca-cert, application/x-x509-user-cert, application/x-pkcs12");
         intent.setType("*/*");
 
         try {
-            c.startActivityForResult(Intent.createChooser(intent, "Select a file"), tag);
+            startActivityForResult(Intent.createChooser(intent, "Select a file"), tag);
         } catch (android.content.ActivityNotFoundException ex) {
             // Potentially direct the user to the Market with a Dialog
         }
@@ -181,7 +144,7 @@ public class ActivityPreferencesConnection extends ActivityBase {
         private static boolean tlsVal;
         private static boolean cleansessionVal;
         private static boolean authenticationVal;
-        private String crtPath;
+        private static boolean wsVal;
 
 
         private SharedPreferences.OnSharedPreferenceChangeListener modeListener;
@@ -189,14 +152,14 @@ public class ActivityPreferencesConnection extends ActivityBase {
         private static Menu mMenu;
         private MenuInflater mInflater;
         ServiceBroker.State cachedState = null;
-        private String tlsCaCrtFullPath;
-        private String tlsClientCrtFullPath;
+        private String tlsCaCrtName;
+        private String tlsClientCrtName;
 
         private void loadHostPreferences(final Activity a) {
             Preference.OnPreferenceClickListener hostClickListener = new Preference.OnPreferenceClickListener() {
                 @Override
                 public boolean onPreferenceClick(Preference preference) {
-                    MaterialDialog dialog = new MaterialDialog.Builder(a)
+                        new MaterialDialog.Builder(a)
                             .customView(R.layout.preferences_host, true)
                             .title(R.string.preferencesHost)
                             .positiveText(R.string.accept)
@@ -207,12 +170,21 @@ public class ActivityPreferencesConnection extends ActivityBase {
                                     MaterialDialog d = MaterialDialog.class.cast(dialog);
                                     final MaterialEditText host = (MaterialEditText) d.findViewById(R.id.host);
                                     final MaterialEditText port = (MaterialEditText) d.findViewById(R.id.port);
+                                    final Switch ws = (Switch)d.findViewById(R.id.ws);
 
                                     host.setText(Preferences.getHost());
                                     host.setFloatingLabelAlwaysShown(true);
 
                                     port.setText(Preferences.getPortWithHintSupport());
                                     port.setFloatingLabelAlwaysShown(true);
+
+                                    ws.setChecked(wsVal);
+                                    ws.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+                                        @Override
+                                        public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                                            wsVal = isChecked;
+                                        }
+                                    });
 
                                 }
                             })
@@ -229,8 +201,10 @@ public class ActivityPreferencesConnection extends ActivityBase {
                                     try {
                                         Preferences.setPort(Integer.parseInt(port.getText().toString()));
                                     } catch (NumberFormatException e) {
-                                        Preferences.clearKey(R.string.keyPort);
+                                        Preferences.clearKey(Preferences.Keys.PORT);
                                     }
+
+                                    Preferences.setWs(wsVal);
                                 }
                             })
 
@@ -243,6 +217,7 @@ public class ActivityPreferencesConnection extends ActivityBase {
 
             hostPreference = findPreference(getString(R.string.keyHost));
             hostPreference.setOnPreferenceClickListener(hostClickListener);
+            wsVal = Preferences.getWs();
 
         }
 
@@ -336,82 +311,7 @@ public class ActivityPreferencesConnection extends ActivityBase {
         }
 
 
-        private void loadIdentificationPreferencesHosted(final Activity a) {
-            Preference.OnPreferenceClickListener identificationClickListener = new Preference.OnPreferenceClickListener() {
-                @Override
-                public boolean onPreferenceClick(Preference preference) {
-                    new MaterialDialog.Builder(a)
-                            .customView(R.layout.preferences_identification_hosted, true)
-                            .title(R.string.preferencesIdentification)
-                            .positiveText(R.string.accept)
-                            .negativeText(R.string.cancel)
-                            .showListener(new DialogInterface.OnShowListener() {
-                                @Override
-                                public void onShow(DialogInterface dialog) {
-                                    MaterialDialog d = MaterialDialog.class.cast(dialog);
-                                    final MaterialEditText username = (MaterialEditText) d.findViewById(R.id.usernameHosted);
-                                    final MaterialEditText password = (MaterialEditText) d.findViewById(R.id.passwordHosted);
-                                    final MaterialEditText deviceId = (MaterialEditText) d.findViewById(R.id.deviceIdHosted);
-                                    final MaterialEditText trackerId = (MaterialEditText) d.findViewById(R.id.trackerId);
 
-
-                                    username.setText(Preferences.getUsername());
-                                    password.setText(Preferences.getPassword());
-                                    deviceId.setText(Preferences.getDeviceId(false));
-                                    trackerId.setText(Preferences.getTrackerId(false));
-                                    trackerId.setHint(Preferences.getTrackerIdDefault());
-
-                                    deviceId.addTextChangedListener(new TextWatcher() {
-                                        @Override
-                                        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-
-                                        }
-
-                                        @Override
-                                        public void onTextChanged(CharSequence s, int start, int before, int count) {
-                                            if (s.length() >= 2)
-                                                trackerId.setHint(s.toString().substring(deviceId.length() - 2));
-                                            else
-                                                trackerId.setHint(Preferences.getTrackerIdDefault());
-                                        }
-
-                                        @Override
-                                        public void afterTextChanged(Editable s) {
-
-                                        }
-                                    });
-
-                                }
-                            })
-                            .callback(new MaterialDialog.ButtonCallback() {
-                                @Override
-                                public void onPositive(MaterialDialog dialog) {
-                                    MaterialDialog d = MaterialDialog.class.cast(dialog);
-                                    final MaterialEditText username = (MaterialEditText) d.findViewById(R.id.usernameHosted);
-                                    final MaterialEditText password = (MaterialEditText) d.findViewById(R.id.passwordHosted);
-                                    final MaterialEditText deviceId = (MaterialEditText) d.findViewById(R.id.deviceIdHosted);
-                                    final MaterialEditText trackerId = (MaterialEditText) d.findViewById(R.id.trackerId);
-
-                                    Preferences.setUsername(username.getText().toString());
-                                    Preferences.setPassword(password.getText().toString());
-                                    Preferences.setDeviceId(deviceId.getText().toString());
-                                    Preferences.setTrackerId(trackerId.getText().toString());
-
-                                    updateConnectButton();
-
-                                }
-                            })
-                            .show();
-
-                    return true;
-                }
-            };
-
-            authenticationVal = Preferences.getAuth();
-            identificationPreference = findPreference(getString(R.string.keyIdentification));
-            identificationPreference.setOnPreferenceClickListener(identificationClickListener);
-
-        }
 
 
         private void loadSecurityPreferences(final Activity a) {
@@ -428,18 +328,16 @@ public class ActivityPreferencesConnection extends ActivityBase {
                             .showListener(new DialogInterface.OnShowListener() {
                                 @Override
                                 public void onShow(DialogInterface dialog) {
-                                    tlsCaCrtFullPath = Preferences.getTlsCaCrtPath();
-                                    tlsClientCrtFullPath = Preferences.getTlsClientCrtPath();
+                                    tlsCaCrtName = Preferences.getTlsCaCrtName();
+                                    tlsClientCrtName = Preferences.getTlsClientCrtName();
 
                                     MaterialDialog d = MaterialDialog.class.cast(dialog);
                                     Switch tls = (Switch) d.findViewById(R.id.tls);
 
-                                    final MaterialEditText tlsCaCrt = (MaterialEditText) d.findViewById(R.id.tlsCaCrt);
-                                    final MaterialEditText tlsClientCrt = (MaterialEditText) d.findViewById(R.id.tlsClientCrt);
-                                    final MaterialEditText tlsClientCrtPassword = (MaterialEditText) d.findViewById(R.id.tlsClientCrtPassword);
+                                    final MaterialEditText tlsCaCrtNameView = (MaterialEditText) d.findViewById(R.id.tlsCaCrt);
+                                    final MaterialEditText tlsClientCrtNameView = (MaterialEditText) d.findViewById(R.id.tlsClientCrt);
+                                    final MaterialEditText tlsClientCrtPasswordView = (MaterialEditText) d.findViewById(R.id.tlsClientCrtPassword);
 
-                                    setTlsCaCrtPath(tlsCaCrtFullPath, tlsCaCrt);
-                                    setTlsClientCrtPath(tlsClientCrtFullPath, tlsClientCrt);
 
 
                                     tls.setChecked(tlsVal);
@@ -447,31 +345,34 @@ public class ActivityPreferencesConnection extends ActivityBase {
                                         @Override
                                         public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                                             tlsVal = isChecked;
-                                            tlsCaCrt.setVisibility(tlsVal ? View.VISIBLE : View.GONE);
-                                            tlsClientCrt.setVisibility(tlsVal ? View.VISIBLE : View.GONE);
-                                            tlsClientCrtPassword.setVisibility(tlsVal && !"".equals(tlsClientCrt.getText().toString()) ? View.VISIBLE : View.GONE);
+                                            tlsCaCrtNameView.setVisibility(tlsVal ? View.VISIBLE : View.GONE);
+                                            tlsClientCrtNameView.setVisibility(tlsVal ? View.VISIBLE : View.GONE);
+                                            tlsClientCrtPasswordView.setVisibility(tlsVal && !"".equals(tlsClientCrtNameView.getText().toString()) ? View.VISIBLE : View.GONE);
 
                                         }
                                     });
 
-                                    tlsCaCrt.setVisibility(tlsVal ? View.VISIBLE : View.GONE);
-                                    tlsClientCrt.setVisibility(tlsVal ? View.VISIBLE : View.GONE);
-                                    tlsCaCrt.setOnClickListener(new View.OnClickListener() {
+                                    tlsCaCrtNameView.setVisibility(tlsVal ? View.VISIBLE : View.GONE);
+                                    tlsCaCrtNameView.setText(tlsCaCrtName);
+                                    tlsClientCrtNameView.setVisibility(tlsVal ? View.VISIBLE : View.GONE);
+                                    tlsCaCrtNameView.setOnClickListener(new View.OnClickListener() {
                                         @Override
                                         public void onClick(View v) {
-                                            tlsCaCrt.setFocusable(true);
-                                            tlsCaCrt.setFocusableInTouchMode(true);
-                                            tlsCaCrt.requestFocus();
-                                            PopupMenu popup = new PopupMenu(FragmentPreferences.this.getActivity(), tlsCaCrt);
+                                            tlsCaCrtNameView.setFocusable(true);
+                                            tlsCaCrtNameView.setFocusableInTouchMode(true);
+                                            tlsCaCrtNameView.requestFocus();
+                                            PopupMenu popup = new PopupMenu(v.getContext(), tlsCaCrtNameView);
                                             popup.getMenuInflater().inflate(R.menu.picker, popup.getMenu());
                                             popup.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
                                                 public boolean onMenuItemClick(MenuItem item) {
                                                     if (item.getItemId() == R.id.clear) {
-                                                        setTlsCaCrtPath("", tlsCaCrt);
-                                                    } else if (item.getItemId() == R.id.select)
-                                                        showFileChooser(getActivity(), FILE_SELECT_CODE_TLS_CA_CRT_PATH);
-                                                    tlsCaCrt.setFocusable(false);
-                                                    tlsCaCrt.setFocusableInTouchMode(false);
+                                                        clearTlsCaCrtName();
+                                                    } else if (item.getItemId() == R.id.select) {
+                                                        ((ActivityPreferencesConnection) getActivity()).showFileChooser(FILE_SELECT_CODE_TLS_CA_CRT_PATH);
+                                                    }
+
+                                                    tlsCaCrtNameView.setFocusable(false);
+                                                    tlsCaCrtNameView.setFocusableInTouchMode(false);
 
 
                                                     return true;
@@ -481,8 +382,8 @@ public class ActivityPreferencesConnection extends ActivityBase {
                                             popup.setOnDismissListener(new PopupMenu.OnDismissListener() {
                                                 @Override
                                                 public void onDismiss(PopupMenu menu) {
-                                                    tlsCaCrt.setFocusable(false);
-                                                    tlsCaCrt.setFocusableInTouchMode(false);
+                                                    tlsCaCrtNameView.setFocusable(false);
+                                                    tlsCaCrtNameView.setFocusableInTouchMode(false);
                                                 }
                                             });
 
@@ -492,23 +393,25 @@ public class ActivityPreferencesConnection extends ActivityBase {
                                         }
                                     });
 
-                                    tlsClientCrt.setVisibility(tlsVal ? View.VISIBLE : View.GONE);
-                                    tlsClientCrt.setOnClickListener(new View.OnClickListener() {
+                                    tlsClientCrtNameView.setVisibility(tlsVal ? View.VISIBLE : View.GONE);
+                                    tlsClientCrtNameView.setText(tlsClientCrtName);
+                                    tlsClientCrtNameView.setOnClickListener(new View.OnClickListener() {
                                         @Override
                                         public void onClick(View v) {
-                                            tlsClientCrt.setFocusable(true);
-                                            tlsClientCrt.setFocusableInTouchMode(true);
-                                            tlsClientCrt.requestFocus();
-                                            PopupMenu popup = new PopupMenu(FragmentPreferences.this.getActivity(), tlsClientCrt);
+                                            tlsClientCrtNameView.setFocusable(true);
+                                            tlsClientCrtNameView.setFocusableInTouchMode(true);
+                                            tlsClientCrtNameView.requestFocus();
+                                            PopupMenu popup = new PopupMenu(v.getContext(), tlsClientCrtNameView);
                                             popup.getMenuInflater().inflate(R.menu.picker, popup.getMenu());
                                             popup.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
                                                 public boolean onMenuItemClick(MenuItem item) {
                                                     if (item.getItemId() == R.id.clear) {
-                                                        setTlsClientCrtPath("", tlsClientCrt);
-                                                    } else if (item.getItemId() == R.id.select)
-                                                        showFileChooser(getActivity(), FILE_SELECT_CODE_TLS_CLIENT_CRT_PATH);
-                                                    tlsClientCrt.setFocusable(false);
-                                                    tlsClientCrt.setFocusableInTouchMode(false);
+                                                        clearTlsClientCrtName();
+                                                    } else if (item.getItemId() == R.id.select) {
+                                                        ((ActivityPreferencesConnection) getActivity()).showFileChooser(FILE_SELECT_CODE_TLS_CLIENT_CRT_PATH);
+                                                    }
+                                                    tlsClientCrtNameView.setFocusable(false);
+                                                    tlsClientCrtNameView.setFocusableInTouchMode(false);
 
                                                     return true;
 
@@ -517,8 +420,8 @@ public class ActivityPreferencesConnection extends ActivityBase {
                                             popup.setOnDismissListener(new PopupMenu.OnDismissListener() {
                                                 @Override
                                                 public void onDismiss(PopupMenu menu) {
-                                                    tlsClientCrt.setFocusable(false);
-                                                    tlsClientCrt.setFocusableInTouchMode(false);
+                                                    tlsClientCrtNameView.setFocusable(false);
+                                                    tlsClientCrtNameView.setFocusableInTouchMode(false);
 
                                                 }
                                             });
@@ -528,7 +431,7 @@ public class ActivityPreferencesConnection extends ActivityBase {
 
                                         }
                                     });
-                                    tlsClientCrt.addTextChangedListener(new TextWatcher() {
+                                    tlsClientCrtNameView.addTextChangedListener(new TextWatcher() {
                                         @Override
                                         public void beforeTextChanged(CharSequence s, int start, int count, int after) {
 
@@ -541,12 +444,12 @@ public class ActivityPreferencesConnection extends ActivityBase {
 
                                         @Override
                                         public void afterTextChanged(Editable s) {
-                                            tlsClientCrtPassword.setVisibility("".equals(s.toString()) ? View.GONE : View.VISIBLE);
+                                            tlsClientCrtPasswordView.setVisibility("".equals(s.toString()) ? View.GONE : View.VISIBLE);
                                         }
                                     });
 
-                                    tlsClientCrtPassword.setVisibility(tlsVal && !"".equals(tlsClientCrt.getText().toString()) ? View.VISIBLE : View.GONE);
-                                    tlsClientCrtPassword.setText(Preferences.getTlsClientCrtPassword());
+                                    tlsClientCrtPasswordView.setVisibility(tlsVal && !"".equals(tlsClientCrtNameView.getText().toString()) ? View.VISIBLE : View.GONE);
+                                    tlsClientCrtPasswordView.setText(Preferences.getTlsClientCrtPassword());
 
 
 
@@ -559,8 +462,11 @@ public class ActivityPreferencesConnection extends ActivityBase {
                                     MaterialDialog d = MaterialDialog.class.cast(dialog);
 
                                     Preferences.setTls(tlsVal);
-                                    Preferences.setTlsCaCrtPath(tlsCaCrtFullPath);
-                                    Preferences.setTlsClientCrtPath(tlsClientCrtFullPath);
+                                    Preferences.setTlsCaCrt(tlsCaCrtName);
+                                    Preferences.setTlsClientCrt(tlsClientCrtName);
+
+                                    Log.v(TAG, "" + tlsCaCrtName + " " + tlsClientCrtName);
+
                                     Preferences.setTlsClientCrtPassword(((MaterialEditText) d.findViewById(R.id.tlsClientCrtPassword)).getText().toString());
                                     updateConnectButton();
                                     securityDialog = null;
@@ -574,7 +480,6 @@ public class ActivityPreferencesConnection extends ActivityBase {
             tlsVal = Preferences.getTls();
             securityPreference = findPreference(getString(R.string.keySecurity));
             securityPreference.setOnPreferenceClickListener(securityListener);
-
 
         }
 
@@ -619,7 +524,7 @@ public class ActivityPreferencesConnection extends ActivityBase {
                                         Preferences.setKeepalive(Integer.parseInt(keepalive.getText().toString()));
 
                                     } catch (NumberFormatException e) {
-                                        Preferences.clearKey(R.string.keyKeepalive);
+                                        Preferences.clearKey(Preferences.Keys.KEEPALIVE);
                                     }
 
                                     updateConnectButton();
@@ -641,14 +546,13 @@ public class ActivityPreferencesConnection extends ActivityBase {
         public void onCreate(Bundle savedInstanceState) {
             super.onCreate(savedInstanceState);
             final Activity a = getActivity();
-            PackageManager pm = a.getPackageManager();
             setHasOptionsMenu(true);
 
 
             Log.v(TAG, "Prepping preferences: " + Preferences.getModeId());
 
 
-            if (Preferences.isModePrivate()) {
+            if (Preferences.isModeMqttPrivate()) {
                 this.getPreferenceManager().setSharedPreferencesName(Preferences.FILENAME_PRIVATE);
                 addPreferencesFromResource(R.xml.preferences_private_connection);
 
@@ -658,23 +562,15 @@ public class ActivityPreferencesConnection extends ActivityBase {
                 loadOptionsPreferences(a);
                 loadIdentificationPreferences(a);
 
-            } else if (Preferences.isModeHosted()) {
-                Log.v(TAG, "Prepping hosted preferences");
-                this.getPreferenceManager().setSharedPreferencesName(Preferences.FILENAME_HOSTED);
-                addPreferencesFromResource(R.xml.preferences_hosted_connection);
-
-                loadIdentificationPreferencesHosted(a);
-
-            } else if (Preferences.isModePublic()) {
+            } else if (Preferences.isModeMqttPublic()) {
                 this.getPreferenceManager().setSharedPreferencesName(Preferences.FILENAME_PUBLIC);
                 addPreferencesFromResource(R.xml.preferences_public_connection);
             } else {
                 throw new RuntimeException("Unknown application mode");
             }
 
-            mode = findPreference(Preferences.getKey(R.string.keyModeId));
-            String[] modesReadable = getResources().getStringArray(R.array.profileIds_readable);
-            mode.setSummary(modesReadable[Preferences.getModeId()]);
+            mode = findPreference(Preferences.Keys.MODE_ID);
+            mode.setSummary(ActivityPreferences.getModeIdReadable(getActivity()));
             mode.setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
                 @Override
                 public boolean onPreferenceChange(Preference preference, Object newValue) {
@@ -706,30 +602,11 @@ public class ActivityPreferencesConnection extends ActivityBase {
             super.onDestroy();
         }
 
+        @SuppressWarnings("unused")
         public void onEventMainThread(Events.StateChanged.ServiceBroker e) {
-            Log.v(TAG, "onEventMainThread StateChanged.ServiceBroker -> " + e.getState());
-            if (cachedState != null) {
-                Snackbar snackbar = null;
-                if (e.getState() == ServiceBroker.State.CONNECTED) {
-                    snackbar = Snackbar.make(getActivity().findViewById(R.id.content_frame), R.string.snackbarConnected, Snackbar.LENGTH_LONG); // Don’t forget to show!
-                } else if (e.getState() == ServiceBroker.State.CONNECTING) {
-                    snackbar = Snackbar.make(getActivity().findViewById(R.id.content_frame), R.string.snackbarConnecting, Snackbar.LENGTH_LONG); // Don’t forget to show!
+            Log.v(TAG, "onEventMainThread StateChanged.ServiceBroker -> " + e.getState() + " cached " + cachedState);
 
-                } else if (e.getState() == ServiceBroker.State.DISCONNECTED || e.getState() == ServiceBroker.State.DISCONNECTED_USERDISCONNECT) {
-                    snackbar = Snackbar.make(getActivity().findViewById(R.id.content_frame), R.string.snackbarDisconnected, Snackbar.LENGTH_LONG); // Don’t forget to show!
-                } else if (e.getState() == ServiceBroker.State.DISCONNECTED_ERROR) {
-                    snackbar =  Snackbar.make(getActivity().findViewById(R.id.content_frame), R.string.snackbarDisconnectedError, Snackbar.LENGTH_LONG); // Don’t forget to show!
-                }
 
-                // Fix snackbar text color and show
-                if(snackbar != null) {
-                    View view = snackbar.getView();
-                    TextView tv = (TextView) view.findViewById(android.support.design.R.id.snackbar_text);
-                    tv.setTextColor(Color.WHITE);
-                    snackbar.show();
-                }
-
-            }
             cachedState = e.getState(); // this event might arrive before options menu is ready. In this case onCreateOptionsmenu updates the button from the cachedState
             updateDisconnectButton(e.getState());
         }
@@ -761,7 +638,7 @@ public class ActivityPreferencesConnection extends ActivityBase {
 
                         @Override
                         public void run() {
-                            ServiceProxy.getServiceBroker().reconnect();
+                            ServiceProxy.getServiceBroker() .reconnect();
                         }
                     };
                     new Thread(r).start();
@@ -813,35 +690,121 @@ public class ActivityPreferencesConnection extends ActivityBase {
             connectButton.getIcon().setAlpha(canConnect ? 255 : 130);
         }
 
-        public void setTlsCaCrtPath(String path) {
+        public void setTlsCaCrtName(String name) {
             if (securityDialog != null) {
-                setTlsCaCrtPath(path, (TextView) securityDialog.findViewById(R.id.tlsCaCrt));
+                ((TextView) securityDialog.findViewById(R.id.tlsCaCrt)).setText(name);
+                tlsCaCrtName = name;
+
             }
         }
 
-        public void setTlsCaCrtPath(String path, TextView view) {
-            tlsCaCrtFullPath = path;
-            if ("".equals(tlsCaCrtFullPath))
-                view.setText("");
-            else
-                view.setText(ContentPathHelper.fullPathToFilename(tlsCaCrtFullPath));
+        public void clearTlsCaCrtName() {
+            setTlsCaCrtName("");
         }
-        public void setTlsClientCrtPath(String path) {
+
+        public void setTlsClientCrtName(String name) {
             if (securityDialog != null) {
-                setTlsClientCrtPath(path, (TextView) securityDialog.findViewById(R.id.tlsClientCrt));
+                ((TextView) securityDialog.findViewById(R.id.tlsClientCrt)).setText(name);
+                tlsClientCrtName = name;
             }
         }
 
-        public void setTlsClientCrtPath(String path, TextView view) {
-            tlsClientCrtFullPath = path;
-            if ("".equals(tlsClientCrtFullPath))
-                view.setText("");
-            else {
-                view.setText(ContentPathHelper.fullPathToFilename(tlsClientCrtFullPath));
+        public void clearTlsClientCrtName() {
+            setTlsClientCrtName("");
+        }
+
+
+
+    }
+
+    private abstract static class CopyTask extends AsyncTask<Uri, String, String> {
+        public static final Integer STATUS_SUCCESS = 1;
+        public static final Integer STATUS_ERROR = 2;
+        private final WeakReference<FragmentPreferences> reference;
+
+
+        public CopyTask(FragmentPreferences fragment) {
+            this.reference = new WeakReference<>(fragment);
+        }
+
+        public FragmentPreferences getFragement() {
+            return reference.get();
+        }
+
+        @Override
+        protected String doInBackground(Uri... params) {
+            try {
+                //String path = ContentPathHelper.getPath(App.getContext(), params[0]);
+                String filename = ContentPathHelper.uriToFilename(App.getContext(), params[0]);
+                Log.v(TAG, "filename for save is: " + filename);
+
+                InputStream inputStream = App.getContext().getContentResolver().openInputStream(params[0]);
+                FileOutputStream outputStream = App.getContext().openFileOutput(filename, Context.MODE_PRIVATE);
+
+                byte [] buffer = new byte[256];
+                int bytesRead;
+                while((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+                inputStream.close();
+                outputStream.close();
+                Log.v(TAG, "copied file private storage: " + filename);
+
+                return filename;
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                this.cancel(true);
+                return null;
+
+
 
             }
         }
     }
+
+    private static class CaCrtCopyTask extends CopyTask {
+        public CaCrtCopyTask(FragmentPreferences fragment) {
+            super(fragment);
+        }
+
+        @Override
+        protected void onPostExecute(String s) {
+            if (s != null && getFragement() != null)
+                getFragement().setTlsCaCrtName(s);
+        }
+
+        @Override
+        protected void onCancelled(String s) {
+            if (s != null && getFragement() != null)
+                getFragement().clearTlsCaCrtName();
+            Toasts.showUnableToCopyCertificateToast();
+        }
+    }
+
+    private static class ClientCrtCopyTask extends CopyTask {
+        public ClientCrtCopyTask(FragmentPreferences fragment) {
+            super(fragment);
+        }
+
+        @Override
+        protected void onPostExecute(String s) {
+            if (s != null && getFragement() != null) {
+                getFragement().setTlsClientCrtName(s);
+                Toasts.showCopyCertificateSuccessToast();
+
+            }
+
+        }
+
+        @Override
+        protected void onCancelled(String s) {
+            if (s != null && getFragement() != null)
+                getFragement().clearTlsClientCrtName();
+            Toasts.showUnableToCopyCertificateToast();
+        }
+    }
+
 }
 
 

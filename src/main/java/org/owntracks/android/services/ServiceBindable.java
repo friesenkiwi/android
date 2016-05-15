@@ -2,7 +2,6 @@ package org.owntracks.android.services;
 
 import java.lang.ref.WeakReference;
 
-import android.app.IntentService;
 import android.app.Service;
 import android.content.Intent;
 import android.os.Binder;
@@ -36,7 +35,7 @@ public abstract class ServiceBindable extends Service {
 		private WeakReference<ServiceBindable> mService;
 
 		public ServiceBinder(ServiceBindable serviceBindable) {
-			this.mService = new WeakReference<ServiceBindable>(serviceBindable);
+			this.mService = new WeakReference<>(serviceBindable);
 		}
 
 		public ServiceBindable getService() {
@@ -70,5 +69,6 @@ public abstract class ServiceBindable extends Service {
 
 		return Service.START_STICKY;
 	}
+
 
 }

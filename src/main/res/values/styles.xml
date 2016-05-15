@@ -1,4 +1,4 @@
-<!--
+ <!--
  File created by the Android Action Bar Style Generator
 
      Copyright (C) 2011 The Android Open Source Project
@@ -9,7 +9,7 @@
      You may obtain a copy of the License at
   
           http://www.apache.org/licenses/LICENSE-2.0
-  
+
      Unless required by applicable law or agreed to in writing, software
      distributed under the License is distributed on an "AS IS" BASIS,
      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,21 +18,45 @@
 -->
 
 <resources xmlns:android="http://schemas.android.com/apk/res/android">
+    <style name="Theme.Owntracks" parent="Theme.Owntracks.Base"/>
 
 
-    <style name="Theme.Owntracks" parent="@style/Theme.AppCompat.Light.NoActionBar">
+    <style name="Theme.Owntracks.Base" parent="@style/Theme.AppCompat.Light.NoActionBar">
         <item name="android:windowBackground">@color/background</item>
         <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowIsTranslucent">true</item>
         <item name="android:textColor">@color/textPrimary</item>
+        <item name="android:textColorSecondary">@color/textSecondary</item>
 
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryDark">@color/secondary</item>
         <item name="colorAccent">@color/accent</item>
         <item name="windowActionModeOverlay">true</item>
-        <item name="actionModeBackground">@color/primary</item>
+        <item name="popupMenuStyle">@style/PopupMenu</item>
+        <item name="android:actionModeBackground">@color/primary</item>
+
 
     </style>
 
+
+    <style name="PopupMenu" parent="@style/Widget.AppCompat.Light.PopupMenu">
+        <item name="overlapAnchor">true</item>
+    </style>
+
+    <color name="transparent">#00000000</color>
+
+    <style name="ListItemPrimary" parent="@style/TextAppearance.AppCompat.Subhead">
+        <item name="android:textSize">16sp</item>
+        <item name="android:textColor">@color/textPrimary</item>
+    </style>
+
+
+    <style name="ListItemSecondary" parent="@style/TextAppearance.AppCompat.Caption">
+
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/textSecondary</item>
+
+    </style>
 
     <style name="DialogTheme" parent="@style/Base.Theme.AppCompat.Dialog">
 
@@ -49,9 +73,10 @@
 
 
     <color name="divider">#1E000000</color>
-    <color name="textPrimary">#585b5f</color>
-    <color name="textSecondary">#818181</color>
-    <color name="background">#ffffff</color>
+    <color name="textPrimary">#de000000</color>
+    <color name="textSecondary">#8a000000</color>
+    <color name="buttonTint">@color/textSecondary</color>
+    <color name="background">#fffafafa</color>
 
     <color name="pressed">#FFE4E4E4</color>
     <color name="primary">#3f72b5</color>
@@ -73,6 +98,15 @@
     <style name="listItemSecondary">
         <item name="android:textSize">16sp</item>
         <item name="android:textColor">@color/textSecondary</item>
+    </style>
+
+    <style name="Theme.Transparent" parent="Theme.AppCompat">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
     </style>
 
 </resources>

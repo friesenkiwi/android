@@ -2,12 +2,11 @@ package org.owntracks.android.support;
 
 import android.content.Context;
 import android.preference.Preference;
+import android.preference.PreferenceManager;
 import android.preference.PreferenceScreen;
 import android.support.v7.widget.Toolbar;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.LayoutInflater;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -15,10 +14,16 @@ import org.owntracks.android.R;
 
 // This is a prefrence that fakes a toolbar for a preference screen until the Android Support library supports toolbars in preferences_private screens
 public class ToolbarPreference extends Preference {
+    private String title;
     Toolbar toolbar;
-
+    PreferenceScreen screen;
     public ToolbarPreference(Context context, AttributeSet attrs) {
         super(context, attrs);
+    }
+    public ToolbarPreference(Context context, PreferenceScreen parent) {
+        super(context);
+        this.screen = parent;
+
     }
 
 
@@ -26,6 +31,7 @@ public class ToolbarPreference extends Preference {
 
     @Override
     protected View onCreateView(ViewGroup parent) {
+        super.onCreateView(parent);
         parent.setPadding(0, 0, 0, 0);
         LayoutInflater inflater = (LayoutInflater) getContext().getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         View layout = inflater.inflate(R.layout.settings_toolbar, parent, false);
@@ -44,10 +50,14 @@ public class ToolbarPreference extends Preference {
         return layout;
     }
 
-    public void goUp(){
-        PreferenceScreen prefScreen = (PreferenceScreen) getPreferenceManager().findPreference(getKey() + "Screen");
-        if(prefScreen != null && prefScreen.getDialog() != null)
-            prefScreen.getDialog().dismiss();
+    public void goUp() {
+
+        if (screen == null)
+            screen= (PreferenceScreen)findPreferenceInHierarchy(getKey()+"Screen") ;
+
+        if(screen != null)
+            screen.getDialog().dismiss();
+
     }
 
     public Toolbar getToolbar(){

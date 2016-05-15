@@ -4,10 +4,10 @@ import org.owntracks.android.App;
 import org.owntracks.android.R;
 import org.owntracks.android.services.ServiceApplication;
 import org.owntracks.android.services.ServiceProxy;
+import org.owntracks.android.support.Preferences;
 
 import android.app.AlertDialog;
 import android.app.Dialog;
-import android.app.NotificationManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -16,85 +16,27 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityManagerCompat;
 import android.support.v4.app.DialogFragment;
 import android.support.v4.app.FragmentTransaction;
-import android.support.v4.app.NotificationCompat;
+import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.widget.Toast;
 
-import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GoogleApiAvailability;
 import com.google.android.gms.common.GooglePlayServicesUtil;
 
-public class ActivityLauncher extends ActivityBase {
+public class ActivityLauncher extends AppCompatActivity {
 	private static final String TAG = "ActivityLauncher";
 
-	public final static int CONNECTION_FAILURE_RESOLUTION_REQUEST = 9000;
-	public static boolean playServicesAvailable;
+	private static final int RESULT_WIZZARD = 1001;
+	private static final int RESULT_PLAY_SERVICES = 1002;
+
 	private boolean autostart = false;
 
 	private ServiceConnection serviceApplicationConnection;
 	private Context context;
-
-	private static void showPlayServicesNotAvilableNotification() {
-		NotificationCompat.Builder nb = new NotificationCompat.Builder(
-				App.getContext());
-		NotificationManager nm = (NotificationManager) App.getContext()
-				.getSystemService(NOTIFICATION_SERVICE);
-
-		nb.setContentTitle(App.getContext().getString(R.string.app_name))
-				.setSmallIcon(R.drawable.ic_notification)
-				.setContentText("Google Play Services are not available")
-				.setPriority(NotificationCompat.PRIORITY_MIN);
-		nm.notify(ServiceApplication.NOTIFCATION_ID, nb.build());
-
-	}
-
-	public void showGooglePlayServicesError(int resultCode){
-		Dialog errorDialog = GooglePlayServicesUtil
-				.getErrorDialog(resultCode, this,
-						ActivityLauncher.CONNECTION_FAILURE_RESOLUTION_REQUEST);
-
-		if (errorDialog != null) {
-			// Log.v(TAG, "Showing error recovery dialog");
-			ErrorDialogFragment errorFragment = new ErrorDialogFragment();
-			errorFragment.setDialog(errorDialog);
-
-			FragmentTransaction transaction = getSupportFragmentManager()
-					.beginTransaction();
-			transaction.add(errorFragment,
-					"playServicesErrorFragmentEnable");
-			transaction.commitAllowingStateLoss();
-		}
-	}
-
-
-
-	public static boolean checkPlayServices(ActivityLauncher caller) {
-        int resultCode = GooglePlayServicesUtil.isGooglePlayServicesAvailable(App.getContext());
-		playServicesAvailable = ConnectionResult.SUCCESS == resultCode;
-		if (playServicesAvailable) {
-            App.mapFragmentClass=ActivityMain.GoogleMapFragment.class;
-		} else {
-            Log.e("checkPlayServices", "Google Play services not available. Result code " + resultCode);
-            showPlayServicesNotAvilableNotification();
-
-			if (GooglePlayServicesUtil.isUserRecoverableError(resultCode)) {
-                Log.v(TAG, "Showing error recovery dialog");
-				if(caller!=null){
-					caller.showGooglePlayServicesError(resultCode);
-				}
-			} else {
-				if(caller!=null) {
-
-					caller.showQuitError();
-				}
-			}
-        }
-
-        playServicesAvailable=true;
-
-        return playServicesAvailable;
-	}
 
 
 	public static class ErrorDialogFragment extends DialogFragment {
@@ -109,6 +51,7 @@ public class ActivityLauncher extends ActivityBase {
 			this.mDialog = dialog;
 		}
 
+		@NonNull
 		@Override
 		public Dialog onCreateDialog(Bundle savedInstanceState) {
 			return this.mDialog;
@@ -136,14 +79,65 @@ public class ActivityLauncher extends ActivityBase {
 	@Override
 	protected void onResume() {
 		super.onResume();
+		Log.v(TAG, "onResume");
 
-		if (checkPlayServices(this))
-			launchChecksComplete();
+		runChecks();
 	}
 
-	private void showQuitError() {
+	private boolean checkSetup() {
+		if(Preferences.getSetupCompleted()) {
+			Log.v(TAG, "checkSetup ok");
+			return true;
+		} else {
+			startActivityWelcome();
+			Log.v(TAG, "started activitywelcome");
+			return false;
+		}
+	}
+
+
+
+	private void runChecks() {
+		Log.v(TAG, "runChecks");
+		if (checkSetup()) {
+			if(checkPlayServices()) {
+				launchChecksComplete();
+			}
+		}
+	}
+
+
+	private boolean checkPlayServices() {
+
+		if (ServiceApplication.checkPlayServices()) {
+			Log.v(TAG, "check checkPlayServices ok");
+
+			return true;
+		} else {
+			GoogleApiAvailability googleAPI = GoogleApiAvailability.getInstance();
+
+
+			int result = googleAPI.isGooglePlayServicesAvailable(this);
+			if (googleAPI.isUserResolvableError(result)) {
+				//googleAPI.getErrorDialog(this, result, RESULT_PLAY_SERVICES).show();
+				googleAPI.showErrorDialogFragment(this, result, RESULT_PLAY_SERVICES);
+			} else {
+				showQuitError(GoogleApiAvailability.getInstance().getErrorString(result));
+			}
+
+			return false;
+		}
+	}
+
+
+
+
+
+
+
+	private void showQuitError(String error) {
 		AlertDialog.Builder popupBuilder = new AlertDialog.Builder(this);
-		popupBuilder.setMessage("Unable to activate Google Play Services");
+		popupBuilder.setMessage(error);
 		popupBuilder.setTitle("Error");
 		popupBuilder.setNegativeButton("Quit application",
 				new OnClickListener() {
@@ -156,27 +150,38 @@ public class ActivityLauncher extends ActivityBase {
 		ErrorDialogFragment errorFragment = new ErrorDialogFragment();
 		errorFragment.setDialog(popupBuilder.create());
 
-		FragmentTransaction transaction = getSupportFragmentManager()
-				.beginTransaction();
+		FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
 		transaction.add(errorFragment, "playServicesErrorFragmentNotAvailable");
 		transaction.commitAllowingStateLoss();
 	}
 
 	@Override
 	protected void onActivityResult(final int requestCode, final int resultCode, final Intent data) {
+		super.onActivityResult(requestCode, resultCode, data);
+
+
 		Log.v(TAG, "onActivityResult. RequestCode = " + requestCode + ", resultCode " + resultCode);
-		if (requestCode == CONNECTION_FAILURE_RESOLUTION_REQUEST) {
+		if (requestCode == RESULT_PLAY_SERVICES) {
 			if (resultCode != RESULT_OK) {
-				Toast.makeText(this, "Google Play Services must be installed.",
-						Toast.LENGTH_SHORT).show();
-				checkPlayServices(this);
+				showQuitError("Google Play Services must be installed");
 			} else {
 				Log.v(TAG, "Play services activated successfully");
+				runChecks();
 			}
 			return;
 		}
+		else if (requestCode == RESULT_WIZZARD) {
+			Log.v(TAG, "requestCode wizzard resultCode: " + resultCode );
 
-		super.onActivityResult(requestCode, resultCode, data);
+				if(resultCode == 2) {
+					finish();
+					return;
+				} else if(resultCode == 3) {
+					runChecks();
+				}
+
+		}
+
 	}
 
 	private void quitApplication() {
@@ -203,15 +208,18 @@ public class ActivityLauncher extends ActivityBase {
 
 		bindService(i, this.serviceApplicationConnection, Context.BIND_AUTO_CREATE);
 	}
+	private void startActivityWelcome() {
+		Intent intent = new Intent(this, ActivityWelcome.class);
+		//intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
 
-	public void startActivityMain() {
-		startActivityFromClass(ActivityMain.class);
+		startActivityForResult(intent, RESULT_WIZZARD);
 	}
 
-	public void startActivityFromClass(Class<?> c) {
-		Intent intent = new Intent(this.context, c);
+	private void startActivityMain() {
+		Intent intent = new Intent(this.context, App.getRootActivityClass());
 		intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
 		startActivity(intent);
+
 	}
 
 	@Override

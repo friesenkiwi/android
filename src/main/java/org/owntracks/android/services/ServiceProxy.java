@@ -1,7 +1,6 @@
 package org.owntracks.android.services;
 
 import java.io.Closeable;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
 
@@ -12,10 +11,9 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.preference.PreferenceManager;
 import android.util.Log;
 
-import org.owntracks.android.support.Statistics;
+import org.owntracks.android.support.StatisticsProvider;
 import org.owntracks.android.support.receiver.ReceiverProxy;
 
 import de.greenrobot.event.EventBus;
@@ -23,25 +21,27 @@ import de.greenrobot.event.EventBus;
 public class ServiceProxy extends ServiceBindable {
 	private static final String TAG = "ServiceProxy";
 
-
     public static final String WAKELOCK_TAG_BROKER_PING = "org.owntracks.android.wakelock.broker.ping";
     public static final String WAKELOCK_TAG_BROKER_NETWORK = "org.owntracks.android.wakelock.broker.network";
     public static final String WAKELOCK_TAG_BROKER_CONNECTIONLOST = "org.owntracks.android.wakelock.broker.connectionlost";
 
 
+    public static final String SERVICE_APP = "A";
+	public static final String SERVICE_LOCATOR = "L";
+	public static final String SERVICE_BROKER = "B";
+	public static final String SERVICE_NOTIFICATION = "N";
+	public static final String SERVICE_BEACON = "BE";
+	public static final String SERVICE_MESSAGE = "M";
 
-    public static final String SERVICE_APP = "1:App";
-	public static final String SERVICE_LOCATOR = "2:Loc";
-	public static final String SERVICE_BROKER = "3:Brk";
-    public static final String SERVICE_BEACON = "4:Bec";
+
 	public static final String KEY_SERVICE_ID = "srvID";
-    private static ServiceProxy instance;
-	private static HashMap<String, ProxyableService> services = new HashMap<String, ProxyableService>();
-
-	private static LinkedList<Runnable> runQueue = new LinkedList<Runnable>();
+	private static ServiceProxy instance;
+	private static final HashMap<String, ProxyableService> services = new HashMap<>();
+	private static final LinkedList<Runnable> runQueue = new LinkedList<>();
 	private static ServiceProxyConnection connection;
 	private static boolean bound = false;
     private static boolean attemptingToBind = false;
+
 
     @Override
 	public void onCreate() {
@@ -50,13 +50,18 @@ public class ServiceProxy extends ServiceBindable {
 
 	@Override
 	protected void onStartOnce() {
-		Statistics.setTime(this, Statistics.SERVICE_PROXY_START);
+		instance = this;
+
+		StatisticsProvider.setTime(StatisticsProvider.SERVICE_PROXY_START);
 
 		instantiateService(SERVICE_APP);
-		instantiateService(SERVICE_BROKER);
+		instantiateService(SERVICE_NOTIFICATION);
+
+		instantiateService(SERVICE_MESSAGE);
+
+
         instantiateService(SERVICE_LOCATOR);
         instantiateService(SERVICE_BEACON);
-		instance = this;
 	}
 
 	public static ServiceProxy getInstance() {
@@ -74,14 +79,9 @@ public class ServiceProxy extends ServiceBindable {
 
 	}
 
-    @Override
+	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
-		int r = super.onStartCommand(intent, flags, startId); // Invokes
-																// onStartOnce(...)
-																// the fist time
-																// to initialize
-																// the service
-
+		int r = super.onStartCommand(intent, flags, startId);
 		ProxyableService s = getServiceForIntent(intent);
 		if (s != null)
 			s.onStartCommand(intent, flags, startId);
@@ -92,11 +92,11 @@ public class ServiceProxy extends ServiceBindable {
 		return services.get(id);
 	}
 
-	private ProxyableService instantiateService(String id) {
-		ProxyableService p = services.get(id);
-		if (p != null)
-			return p;
+	public static ProxyableService instantiateService(String id) {
+		if (services.containsKey(id))
+			return services.get(id);
 
+		ProxyableService p = null;
         switch (id) {
             case SERVICE_APP:
                 p = new ServiceApplication();
@@ -110,12 +110,20 @@ public class ServiceProxy extends ServiceBindable {
             case SERVICE_BEACON:
                 p = new ServiceBeacon();
                 break;
-        }
+			case SERVICE_NOTIFICATION:
+				p = new ServiceNotification();
+				break;
+			case SERVICE_MESSAGE:
+				p = new ServiceMessage();
+				break;
+		}
+
+		if(p == null)
+			return null;
 
 		services.put(id, p);
-		p.onCreate(this);
+		p.onCreate(instance);
 		EventBus.getDefault().registerSticky(p);
-
 		return p;
 	}
 
@@ -134,6 +142,13 @@ public class ServiceProxy extends ServiceBindable {
     public static ServiceBeacon getServiceBeacon() {
         return (ServiceBeacon) getService(SERVICE_BEACON);
     }
+	public static ServiceNotification getServiceNotification() {
+		return (ServiceNotification) getService(SERVICE_NOTIFICATION);
+	}
+	public static ServiceMessage getServiceMessage() {
+		return (ServiceMessage) getService(SERVICE_MESSAGE);
+	}
+
 
 	public static ProxyableService getServiceForIntent(Intent i) {
 		if ((i != null) && (i.getStringExtra(KEY_SERVICE_ID) != null))
@@ -231,9 +246,7 @@ public class ServiceProxy extends ServiceBindable {
 				}
 
 				@Override
-				public void onServiceConnected(ComponentName name,
-						IBinder binder) {
-                    Log.v("ServiceProxy", "serviceConnected, running queue");
+				public void onServiceConnected(ComponentName name, IBinder binder) {
 
                     bound = true;
                     attemptingToBind = false;
@@ -248,15 +261,14 @@ public class ServiceProxy extends ServiceBindable {
 		}
 
 		runQueue.addLast(runnable);
-        Log.v("ServiceProxy", "bindService called");
 
         try {
-            if (!attemptingToBind) { // Prevent accidential bind during close
+            if (!attemptingToBind) { // Prevent accidental bind during close
                 attemptingToBind = true;
                 context.bindService(new Intent(context, ServiceProxy.class), connection.getServiceConnection(), Context.BIND_AUTO_CREATE);
             }
         } catch (Exception e) {
-            Log.v("ServiceProxy", "bind exception ");
+            Log.e("ServiceProxy", "bind exception ");
             e.printStackTrace();
             attemptingToBind = false;
         }

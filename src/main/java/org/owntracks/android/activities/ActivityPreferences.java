@@ -4,41 +4,43 @@ import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.preference.Preference;
+import android.preference.PreferenceCategory;
 import android.preference.PreferenceFragment;
-import android.preference.PreferenceManager;
+import android.preference.PreferenceGroup;
 import android.preference.PreferenceScreen;
-import android.support.v7.app.AppCompatActivity;
+import android.preference.SwitchPreference;
+import android.support.annotation.ArrayRes;
+import android.support.annotation.BoolRes;
+import android.support.annotation.IntegerRes;
+import android.support.annotation.StringRes;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.LinearLayout;
 
-import com.mikepenz.materialdrawer.Drawer;
-import com.mikepenz.materialdrawer.model.interfaces.IDrawerItem;
-
+import org.owntracks.android.App;
 import org.owntracks.android.R;
 import org.owntracks.android.services.ServiceBroker;
 import org.owntracks.android.services.ServiceProxy;
-import org.owntracks.android.support.DrawerFactory;
 import org.owntracks.android.support.EditIntegerPreference;
+import org.owntracks.android.support.EditStringPreference;
 import org.owntracks.android.support.Events;
+import org.owntracks.android.support.ListIntegerPreference;
 import org.owntracks.android.support.Preferences;
+import org.owntracks.android.support.ToolbarPreference;
 
 import de.greenrobot.event.EventBus;
 
 public class ActivityPreferences extends ActivityBase {
     private static final String TAG = "ActivityPreferences";
 
-    static Preference connectionPreferenceScreen;
     private static final int REQUEST_CODE_CONNECTION = 1310 ;
 
 
@@ -52,7 +54,9 @@ public class ActivityPreferences extends ActivityBase {
                 Log.v(TAG, "onActivityResult with REQUEST_CODE_CONNECTION");
                 if(resultIntent != null && resultIntent.getBooleanExtra(ActivityPreferencesConnection.KEY_MODE_CHANGED, false)) {
                     Log.v(TAG,"recreating ActivityPreferences due to mode change");
-                    this.recreate();
+                 //   this.recreate();
+                 //   this.overridePendingTransition(0, 0);
+                    loadFragment();
                 }
 
                 break;
@@ -61,67 +65,34 @@ public class ActivityPreferences extends ActivityBase {
     }
 
 
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        final Context context = this;
 
         setContentView(R.layout.activity_preferences);
 
-        Toolbar toolbar = (Toolbar) findViewById(R.id.fragmentToolbar);
+
+
+        toolbar = (Toolbar)findViewById(R.id.fragmentToolbar);
         setSupportActionBar(toolbar);
-        getSupportActionBar().setTitle(getTitle());
+        getSupportActionBar().setDisplayShowTitleEnabled(true);
         getSupportActionBar().setDisplayShowHomeEnabled(true);
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        getSupportActionBar().setTitle(getTitle());
+        loadFragment();
 
-        Drawer.OnDrawerItemClickListener drawerListener = new Drawer.OnDrawerItemClickListener() {
-            @Override
-            public boolean onItemClick(AdapterView<?> parent, View view, int position, long id, IDrawerItem drawerItem) {
-                switch (drawerItem.getIdentifier()) {
-                    case R.string.idLocations:
-                        goToRoot();
-                        return true;
-                    case R.string.idPager:
-                        Intent intent1 = new Intent(context, ActivityMessages.class);
-                        startActivity(intent1);
-                        return true;
-                    case R.string.idWaypoints:
-                        Intent intent = new Intent(context, ActivityWaypoints.class);
-                        startActivity(intent);
-                        return true;
-                    case R.string.idSettings:
-                        return true;
-                    case R.string.idStatistics:
-                        Intent intent2 = new Intent(context, ActivityStatistics.class);
-                        startActivity(intent2);
-                        return true;
 
-                }
-                return false;
-            }
-        };
+    }
 
-        DrawerFactory.buildDrawer(this, toolbar, drawerListener, 2);
-
+    private void loadFragment() {
         getFragmentManager().beginTransaction().replace(R.id.content_frame, new FragmentPreferences(), "preferences").commit();
-
     }
-
-
-    private void goToRoot() {
-        Intent intent1 = new Intent(this, ActivityMain.class);
-        intent1.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        startActivity(intent1);
-        finish();
-    }
-
 
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
-            case android.R.id.home:     // If the user hits the toolbar back arrow, go back to ActivityMain, no matter where he came from (same as hitting back)
-                goToRoot();
-                return true;
             case R.id.connect:
 
                 Runnable r = new Runnable() {
@@ -151,26 +122,16 @@ public class ActivityPreferences extends ActivityBase {
 
     }
 
-    // If the user hits back, go back to ActivityMain, no matter where he came from
-    @Override
-    public void onBackPressed() {
-        goToRoot();
-    }
 
 
     public static class FragmentPreferences extends PreferenceFragment {
-        String[] modesReadable;
-
-        private static org.owntracks.android.support.EditIntegerPreference locatorDisplacement;
-        private static org.owntracks.android.support.EditIntegerPreference locatorInterval;
-
         private static Preference version;
         private static Preference repo;
-        private static Preference mail;
         private static Preference twitter;
-
+        private static Preference community;
+        private Preference export;
         static String ver;
-
+        private Preference documentation;
 
 
         @Override
@@ -178,65 +139,86 @@ public class ActivityPreferences extends ActivityBase {
             super.onCreate(savedInstanceState);
             final Activity a = getActivity();
             PackageManager pm = a.getPackageManager();
-            modesReadable = getResources().getStringArray(R.array.profileIds_readable);
 
             Log.v(TAG, "Prepping preferences: " + Preferences.getModeId());
 
-            if (Preferences.isModePrivate()) {
+            if (Preferences.isModeMqttPrivate()) {
                 this.getPreferenceManager().setSharedPreferencesName(Preferences.FILENAME_PRIVATE);
-                addPreferencesFromResource(R.xml.preferences_private);
-            } else if(Preferences.isModeHosted()) {
-                this.getPreferenceManager().setSharedPreferencesName(Preferences.FILENAME_HOSTED);
-                addPreferencesFromResource(R.xml.preferences_hosted);
-            } else if(Preferences.isModePublic()){
+                addPreferencesFromResource(R.xml.preferences_root);
+                PreferenceScreen root = (PreferenceScreen) findPreference("root");
+                populatePreferencesScreen(root);
+            } else if(Preferences.isModeMqttPublic()){
                 this.getPreferenceManager().setSharedPreferencesName(Preferences.FILENAME_PUBLIC);
-                addPreferencesFromResource(R.xml.preferences_public);
+                addPreferencesFromResource(R.xml.preferences_root);
+                PreferenceScreen root = (PreferenceScreen) findPreference("root"); 
+                populatePreferencesScreen(root); 
             } else {
                 throw new RuntimeException("Unknown application mode");
             }
 
+
+            export = findPreference("export");
+
+
+
             repo = findPreference("repo");
-            mail = findPreference("mail");
             twitter = findPreference("twitter");
+            community = findPreference("community");
+            documentation = findPreference("documentation");
             version = findPreference("versionReadOnly");
 
-            locatorDisplacement = (EditIntegerPreference) findPreference(Preferences.getKey(R.string.keyLocatorDisplacement));
-            locatorDisplacement.setHint(Integer.toString(Preferences.getIntResource(R.integer.valLocatorDisplacement)));
-
-            locatorInterval = (EditIntegerPreference) findPreference(Preferences.getKey(R.string.keyLocatorInterval));
-            locatorInterval.setHint(Integer.toString(Preferences.getIntResource(R.integer.valLocatorInterval)));
 
 
             try { ver = pm.getPackageInfo(a.getPackageName(), 0).versionName; } catch (PackageManager.NameNotFoundException e) { ver = a.getString(R.string.na);}
             version.setSummary(ver);
 
+            export.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    Intent intent = new Intent(getActivity(), ActivityExport.class);
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                    intent.putExtra(ActivityBase.DISABLES_ANIMATION, true);
+                    getActivity().startActivity(intent);
+
+                    return true;
+                }
+            });
+
             repo.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
                 @Override
                 public boolean onPreferenceClick(Preference preference) {
                     Intent intent = new Intent(Intent.ACTION_VIEW);
-                    intent.setData(Uri.parse(Preferences.getRepoUrl()));
+                    intent.setData(Uri.parse(getString(R.string.valRepoUrl)));
                     a.startActivity(intent);
                     return false;
                 }
             });
 
-            mail.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-                @Override
-                public boolean onPreferenceClick(Preference preference) {
-                    Intent intent = new Intent(Intent.ACTION_SEND);
-                    intent.setType("message/rfc822");
-                    intent.putExtra(Intent.EXTRA_EMAIL, new String[]{Preferences.getIssuesMail()});
-                    intent.putExtra(Intent.EXTRA_SUBJECT, "OwnTracks (Version: " + ver + ")");
-                    a.startActivity(Intent.createChooser(intent, "Send Email"));
-                    return false;
-                }
-            });
 
             twitter.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
                 @Override
                 public boolean onPreferenceClick(Preference preference) {
                     Intent intent = new Intent(Intent.ACTION_VIEW);
-                    intent.setData(Uri.parse(Preferences.getTwitterUrl()));
+                    intent.setData(Uri.parse(getString(R.string.valTwitterUrl)));
+                    a.startActivity(intent);
+                    return false;
+                }
+            });
+
+            community.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    Intent intent = new Intent(Intent.ACTION_VIEW);
+                    intent.setData(Uri.parse(getString(R.string.valCommunityUrl)));
+                    a.startActivity(intent);
+                    return false;
+                }
+            });
+            documentation.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    Intent intent = new Intent(Intent.ACTION_VIEW);
+                    intent.setData(Uri.parse(getString(R.string.valDocumentationUrl)));
                     a.startActivity(intent);
                     return false;
                 }
@@ -255,12 +237,15 @@ public class ActivityPreferences extends ActivityBase {
                     Log.v(TAG, "startActivityForResult ActivityPreferencesConnection");
                     Intent intent = new Intent(getActivity(), ActivityPreferencesConnection.class);
                     intent.setFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                    intent.putExtra(ActivityBase.DISABLES_ANIMATION, true);
+
                     getActivity().startActivityForResult(intent, REQUEST_CODE_CONNECTION);
+
                     return true;
                 }
             };
 
-                // Fix toolbars for PreferenceScreens on demand
+            //Fix toolbars for PreferenceScreens on demand
             Preference.OnPreferenceClickListener genericListener = new Preference.OnPreferenceClickListener() {
                 @Override
                 public boolean onPreferenceClick(final android.preference.Preference preference) {
@@ -268,7 +253,6 @@ public class ActivityPreferences extends ActivityBase {
                         return false;
 
                     final Dialog dialog = ((PreferenceScreen)preference).getDialog();
-
                     LinearLayout root = (LinearLayout) dialog.findViewById(android.R.id.list).getParent();
                     final Toolbar bar = (Toolbar) LayoutInflater.from(preference.getContext()).inflate(R.layout.toolbar, root, false);
                     root.addView(bar, 0); // insert at top
@@ -285,11 +269,206 @@ public class ActivityPreferences extends ActivityBase {
                 }
             };
             findPreference("connectionScreen").setOnPreferenceClickListener(connectionListener);
-            findPreference("reportingScreen").setOnPreferenceClickListener(genericListener);
-            findPreference("notificationScreen").setOnPreferenceClickListener(genericListener);
-            findPreference("advancedScreen").setOnPreferenceClickListener(genericListener);
-            findPreference("informationScreen").setOnPreferenceClickListener(genericListener);
+           // findPreference("reportingScreen").setOnPreferenceClickListener(genericListener);
+           // findPreference("notificationScreen").setOnPreferenceClickListener(genericListener);
+            // findPreference("advancedScreen").setOnPreferenceClickListener(genericListener);
+            // findPreference("informationScreen").setOnPreferenceClickListener(genericListener);
         }
+
+        private void populatePreferencesScreen(PreferenceScreen root) {
+
+            populateScreenReporting((PreferenceScreen)root.findPreference("reportingScreen"));
+            populateScreenNotification((PreferenceScreen)root.findPreference("notificationScreen"));
+            populateScreenAdvanced((PreferenceScreen)root.findPreference("advancedScreen"));
+            setupDependencies(root);
+        }
+
+
+        private void populateScreenReporting(PreferenceScreen screen) {
+            addToolbar(screen);
+            addSwitchPreference(screen, Preferences.Keys.PUB, R.string.preferencesBackroundUpdates, R.string.preferencesBackgroundUpdatesSummary, R.bool.valPub);
+            addSwitchPreference(screen, Preferences.Keys.PUB_EXTENDED_DATA, R.string.preferencesPubExtendedDataSummary, R.string.preferencesPubExtendedData, R.bool.valPubExtendedData);
+        }
+
+
+        private void populateScreenAdvanced(PreferenceScreen screen) {
+            addToolbar(screen);
+            PreferenceCategory services = getCategory(R.string.preferencesCategoryAdvancedServices);
+            screen.addPreference(services);
+            addSwitchPreference(services, Preferences.Keys.REMOTE_COMMAND, R.string.preferencesRemoteCommand, R.string.preferencesRemoteCommandSummary, R.bool.valRemoteCommand);
+
+            PreferenceCategory locator = getCategory(R.string.preferencesCategoryAdvancedLocator);
+            screen.addPreference(locator);
+            addListIntegerPreference(locator, Preferences.Keys.LOCATOR_ACCURACY_FOREGROUND,  R.string.preferencesLocatorAccuracyForeground, R.string.preferencesLocatorAccuracyForegroundSummary, R.array.locatorAccuracy_readable, R.array.locatorAccuracy, R.integer.valLocatorAccuracyForeground);
+            addListIntegerPreference(locator, Preferences.Keys.LOCATOR_ACCURACY_BACKGROUND, R.string.preferencesLocatorAccuracyBackground, R.string.preferencesLocatorAccuracyBackgroundSummary, R.array.locatorAccuracy_readable, R.array.locatorAccuracy, R.integer.valLocatorAccuracyForeground);
+            addEditIntegerPreference(locator, Preferences.Keys.LOCATOR_DISPLACEMENT, R.string.preferencesLocatorDisplacement, R.string.preferencesLocatorDisplacementSummary, R.integer.valLocatorDisplacement);
+            addEditIntegerPreference(locator, Preferences.Keys.LOCATOR_INTERVAL, R.string.preferencesLocatorInterval, R.string.preferencesLocatorIntervalSummary, R.integer.valLocatorInterval);
+
+            PreferenceCategory encryption = getCategory(R.string.preferencesCategoryAdvancedEncryption);
+            screen.addPreference(encryption);
+            addEditStringPreference(encryption, Preferences.Keys._ENCRYPTION_KEY, R.string.preferencesEncryptionKey, R.string.preferencesEncryptionKeySummary, R.string.valEmpty);
+
+            PreferenceCategory misc = getCategory(R.string.preferencesCategoryAdvancedMisc);
+            screen.addPreference(misc);
+            addSwitchPreference(misc, Preferences.Keys.AUTOSTART_ON_BOOT, R.string.preferencesAutostart, R.string.preferencesAutostartSummary, R.bool.valAutostartOnBoot);
+
+
+        }
+
+        private void populateScreenNotification(PreferenceScreen screen) {
+            addToolbar(screen);
+
+            PreferenceCategory ongoing = getCategory(R.string.preferencesCategoryNotificationOngoing);
+            screen.addPreference(ongoing);
+            addSwitchPreference(ongoing, Preferences.Keys.NOTIFICATION, R.string.preferencesNotification, R.string.preferencesNotificationSummary, R.bool.valNotification);
+            addSwitchPreference(ongoing, Preferences.Keys.NOTIFICATION_LOCATION, R.string.preferencesNotificationLocation, R.string.preferencesNotificationLocationSummary, R.bool.valNotificationLocation);
+
+
+            PreferenceCategory background = getCategory(R.string.preferencesCategoryNotificatinBackground);
+            screen.addPreference(background);
+            addSwitchPreference(background, Preferences.Keys.NOTIFICATION_EVENTS, R.string.preferencesNotificationEvents, R.string.preferencesNotificationEventsSummary, R.bool.valNotificationEvents);
+
+        }
+
+        private void setupDependencies(PreferenceScreen root) {
+            setDependency(root, Preferences.Keys.NOTIFICATION_LOCATION, Preferences.Keys.NOTIFICATION);
+            setDependency(root, Preferences.Keys.NOTIFICATION_EVENTS, Preferences.Keys.NOTIFICATION);
+        }
+
+        private void setDependency(PreferenceScreen root, String dependingKey, String dependsOnKey) {
+            try {
+                root.findPreference(dependingKey).setDependency(dependsOnKey);
+            } catch (IllegalStateException e) {Log.e(TAG, "Preference dependency could not be setup from: " + dependingKey + " to " + dependsOnKey);}
+        }
+
+
+
+        private PreferenceCategory getCategory(@StringRes int titleRes) {
+            PreferenceCategory c = new PreferenceCategory(getActivity());
+            c.setTitle(titleRes);
+            return c;
+        }
+
+        private boolean addSwitchPreference(PreferenceGroup parent, String key, @StringRes int titleRes, @StringRes int summaryRes, @BoolRes int defaultValueAllModes) {
+            return addSwitchPreference(parent, key, titleRes, summaryRes, defaultValueAllModes, defaultValueAllModes);
+        }
+
+        private void addToolbar(PreferenceScreen parent) {
+            ToolbarPreference t = new ToolbarPreference(getActivity(), parent);
+            t.setTitle(parent.getTitle());
+            parent.addPreference(t);
+        }
+
+        private boolean addSwitchPreference(PreferenceGroup parent, String key, @StringRes int titleRes, @StringRes int summaryRes, @BoolRes int defaultValueResPrivate, @BoolRes int defaultValueResPublic) {
+            // Skip if no default value exists for current mode. Can be used to exclude preferences in some modes
+            if((Preferences.isModeMqttPrivate() && defaultValueResPrivate == 0) || (Preferences.isModeMqttPublic() && defaultValueResPublic == 0)) {
+                return false;
+            }
+
+            SwitchPreference p = new SwitchPreference(getActivity());
+            p.setKey(key);
+            p.setTitle(titleRes);
+            p.setSummary(summaryRes);
+            p.setPersistent(false);
+            p.setChecked(Preferences.getBoolean(key, defaultValueResPrivate, defaultValueResPublic, false));
+            p.setPersistent(true);
+            parent.addPreference(p);
+            return true;
+        }
+
+        private boolean addEditStringPreference(PreferenceGroup parent, String key, @StringRes int titleRes, @StringRes int summaryRes, @StringRes int defaultValueAllModes) {
+            return addEditStringPreference(parent, key, titleRes, summaryRes, defaultValueAllModes, defaultValueAllModes);
+        }
+
+        private boolean addEditStringPreference(PreferenceGroup parent, String key, @StringRes int titleRes, @StringRes int summaryRes, @StringRes int defaultValueResPrivate, @StringRes int defaultValueResPublic) {
+            // Skip if no default value exists for current mode. Can be used to exclude preferences in some modes
+            if((Preferences.isModeMqttPrivate() && defaultValueResPrivate == 0) || (Preferences.isModeMqttPublic() && defaultValueResPublic == 0)) {
+                return false;
+            }
+
+            EditStringPreference p = new EditStringPreference(getActivity());
+            p.setKey(key);
+            p.setTitle(titleRes);
+            p.setSummary(summaryRes);
+
+            p.setPersistent(false);
+            p.setText(getEditStringPreferenceTextValueWithHintSupport(key));
+            p.setHint(Preferences.getStringDefaultValue(defaultValueResPrivate, defaultValueResPublic));
+            p.setPersistent(true);
+
+            parent.addPreference(p);
+            return true;
+        }
+
+
+
+
+
+        private boolean addEditIntegerPreference(PreferenceGroup parent, String key, @StringRes int titleRes, @StringRes int summaryRes, @IntegerRes int defaultValueAllModes) {
+            return addEditIntegerPreference(parent, key, titleRes, summaryRes, defaultValueAllModes, defaultValueAllModes);
+        }
+
+        private boolean addEditIntegerPreference(PreferenceGroup parent, String key, @StringRes int titleRes, @StringRes int summaryRes, @IntegerRes int defaultValueResPrivate, @IntegerRes int defaultValueResPublic) {
+            // Skip if no default value exists for current mode. Can be used to exclude preferences in some modes
+            if((Preferences.isModeMqttPrivate() && defaultValueResPrivate == 0) || (Preferences.isModeMqttPublic() && defaultValueResPublic == 0)) {
+                return false;
+            }
+
+            EditIntegerPreference p = new EditIntegerPreference(getActivity());
+            p.setKey(key);
+            p.setTitle(titleRes);
+            p.setSummary(summaryRes);
+
+            p.setPersistent(false);
+            p.setText(getEditIntegerPreferenceTextValueWithHintSupport(key));
+            p.setHint(Integer.toString(Preferences.getIntegerDefaultValue(defaultValueResPrivate, defaultValueResPublic)));
+            p.setPersistent(true);
+
+            parent.addPreference(p);
+            return true;
+        }
+
+        private String getEditStringPreferenceTextValueWithHintSupport(String key) {
+            return Preferences.getString(key, R.string.valEmpty);
+        }
+
+        // returns an empty string if no key value is found so that a hint can be displayed
+        private String getEditIntegerPreferenceTextValueWithHintSupport(String key) {
+            int i = Preferences.getInt(key, R.integer.valInvalid);
+            if (i == -1) {
+                return "";
+            } else {
+                return Integer.toString(i);
+            }
+        }
+
+
+        private boolean addListIntegerPreference(PreferenceGroup parent, String key, @StringRes int titleRes, @StringRes int summaryRes, @ArrayRes int entriesRes, @ArrayRes int entryValuesRes, @IntegerRes int defaultValueAllModes) {
+            return addListIntegerPreference(parent, key, titleRes, summaryRes, entriesRes, entryValuesRes, defaultValueAllModes, defaultValueAllModes);
+        }
+
+        private boolean addListIntegerPreference(PreferenceGroup parent, String key, @StringRes int titleRes, @StringRes int summaryRes, @ArrayRes int entriesRes, @ArrayRes int entryValuesRes, @IntegerRes int defaultValueResPrivate, @IntegerRes int defaultValueResPublic) {
+            // Skip if no default value exists for current mode. Can be used to exclude preferences in some modes
+            if((Preferences.isModeMqttPrivate() && defaultValueResPrivate == 0) || (Preferences.isModeMqttPublic() && defaultValueResPublic == 0)) {
+                return false;
+            }
+
+            ListIntegerPreference p = new ListIntegerPreference(parent.getContext());
+            p.setKey(key);
+            p.setTitle(titleRes);
+            p.setSummary(summaryRes);
+            p.setEntries(entriesRes);
+            p.setEntryValues(entryValuesRes);
+
+            p.setPersistent(false);
+            p.setValueIndex(Preferences.getInt(key, defaultValueResPrivate, defaultValueResPublic, false));
+            p.setPersistent(true);
+
+            parent.addPreference(p);
+            return true;
+        }
+
+
 
 
 
@@ -310,6 +489,7 @@ public class ActivityPreferences extends ActivityBase {
             super.onDestroy();
         }
 
+        @SuppressWarnings("unused")
         public void onEventMainThread(Events.StateChanged.ServiceBroker e) {
             if ((e != null) && (e.getExtra() != null) && (e.getExtra() instanceof Exception)) {
                 if ((((Exception) e.getExtra()).getCause() != null))
@@ -326,15 +506,31 @@ public class ActivityPreferences extends ActivityBase {
             setServerPreferenceSummary(c, ServiceBroker.getStateAsString(c.getActivity()));
         }
 
+
         private  void setServerPreferenceSummary(PreferenceFragment f, String s) {
-            f.findPreference("connectionScreen").setSummary(modesReadable[Preferences.getModeId()] + " - "+ s);
 
-
+            f.findPreference("connectionScreen").setSummary(getModeIdReadable(getActivity()) + " - "+ s);
             ((BaseAdapter) ((PreferenceScreen) f.findPreference("root")).getRootAdapter()).notifyDataSetChanged(); //Have to redraw the list to reflect summary change
         }
-
     }
 
+
+    public static String getModeIdReadable(Context c) {
+        String mode;
+        switch (Preferences.getModeId()) {
+            case App.MODE_ID_MQTT_PRIVATE:
+                mode = c.getString(R.string.mode_mqtt_private_label);
+                break;
+            case App.MODE_ID_MQTT_PUBLIC:
+                mode = c.getString(R.string.mode_mqtt_public_label);
+                break;
+            default:
+                mode = c.getString(R.string.mode_mqtt_private_label);
+                break;
+        }
+        return mode;
+
+    }
 
 
 

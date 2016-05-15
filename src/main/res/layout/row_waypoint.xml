@@ -8,26 +8,42 @@
     android:layout_height="wrap_content"
     android:layout_alignWithParentIfMissing="true"
     android:layout_centerVertical="true"
-    android:layout_marginLeft="16dp"
-    android:layout_marginRight="16dp"
+    android:padding="16dp"
     android:layout_toRightOf="@+id/imageMask"
     android:layout_toEndOf="@+id/imageMask"
     android:orientation="vertical"
-    android:layout_marginTop="16dp"
-    android:layout_marginBottom="16dp"
 
     >
 
 
-    <TextView
-        android:id="@+id/title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/na"
-        android:textSize="16sp"
-        android:ellipsize="end"
-        android:singleLine="true"
-        android:textColor="#212121" />
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/na"
+            android:ellipsize="end"
+            android:singleLine="true"
+            style="@style/ListItemPrimary"
+            android:layout_toLeftOf="@+id/meta"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentStart="true" />
+
+        <TextView
+            android:id="@+id/meta"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:singleLine="true"
+            android:textSize="12dp"
+            style="@style/ListItemSecondary"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentRight="true"
+            android:layout_alignParentEnd="true" />
+    </RelativeLayout>
 
 
     <TextView
@@ -35,19 +51,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/na"
-        android:textSize="14sp"
         android:ellipsize="none"
         android:singleLine="false"
-        android:textColor="#212121" />
-
-    <com.github.curioustechizen.ago.RelativeTimeTextView
-        android:id="@+id/meta"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/na"
-        android:textSize="12sp"
-        android:ellipsize="end"
-        android:singleLine="true"
-        android:textColor="#858585" />
+        style="@style/ListItemSecondary"/>
 
 </LinearLayout>

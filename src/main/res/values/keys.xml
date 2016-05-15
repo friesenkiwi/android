@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="keyDeviceUUID">deviceUUID</string>
-    <string name="keyTrackerId">trackerId</string>
     <string name="keyDeviceId">deviceId</string>
+
+    <string name="keyTrackerId">tid</string>
     <string name="keyClientId">clientId</string>
     <string name="keyHost">host</string>
     <string name="keyPort">port</string>
@@ -13,45 +14,39 @@
     <string name="keyPubRetain">pubRetain</string>
     <string name="keyCleanSession">cleanSession</string>
     <string name="keyTls">tls</string>
-    <string name="keyTlsCaCrtPath">tlsCaCrtPath</string>
-    <string name="keyTlsClientCrtPath">tlsClientCrtPath</string>
+    <string name="keyTlsCaCrt">tlsCaCrt</string>
+    <string name="keyTlsClientCrt">tlsClientCrt</string>
     <string name="keyTlsClientCrtPassword">tlsClientCrtPassword</string>
-
+    <string name="keyWaypoints">waypoints</string>
 
     <string name="keyLocatorDisplacement">locatorDisplacement</string>
     <string name="keyLocatorInterval">locatorInterval</string>
     <string name="keyAuth">auth</string>
     <string name="keyPubIncludeBattery">pubIncludeBattery</string>
-    <string name="keyConnectionAdvancedMode">connectionAdvancedMode</string>
     <string name="keySub">sub</string>
     <string name="keyPub">pub</string>
+    <string name="keyPubExtendedData">pubExtendedData</string>
+
     <string name="keyPubInterval">pubInterval</string>
-    <string name="keyDeviceTopic">deviceTopic</string>
-    <string name="keyBaseTopic">baseTopic</string>
+    <string name="keyPubTopicBase">pubTopicBase</string>
+    <string name="keySubTopic">subTopic</string>
+    <string name="keyEncryptionKey">encryptionKey</string>
+
+
 
     <string name="keyNotification">notification</string>
-    <string name="keyNotificationGeocoder">notificationGeocoder</string>
     <string name="keyNotificationLocation">notificationLocation</string>
-    <string name="keyNotificationOnMessage">notificationOnMessage</string>
+    <string name="keyNotificationEvents">notificationEvents</string>
 
-    <string name="keyNotificationTickerOnPublish">notificationTickerOnPublish</string>
-    <string name="keyNotificationVibrateOnPublish">notificationVibrateOnPublish</string>
-    <string name="keyNotificationVibrateOnWaypointTransition">notificationVibrateOnWaypointTransition</string>
-    <string name="keyNotificationTickerOnWaypointTransition">notificationTickerOnWaypointTransition</string>
-    <string name="keyNotificationOnReceivedWaypointTransition">notificationOnReceivedWaypointTransition</string>
-    <string name="keySelectedContactTopic">selectedContactTopic</string>
-    <string name="keyFollowingSelectedContact">followingSelectedContact</string>
     <string name="keyAutostartOnBoot">autostartOnBoot</string>
     <string name="keyLocatorAccuracyBackground">locatorAccuracyBackground</string>
     <string name="keyLocatorAccuracyForeground">locatorAccuracyForeground</string>
-    <string name="keyZeroLenghClientIdEnabled">zeroLenghClientIdEnabled</string>
     <string name="keyRemoteCommandReportLocation">remoteCommandReportLocation</string>
     <string name="keyRemoteConfiguration">remoteConfiguration</string>
-    <string name="keyCustomBeaconLayout">customBeaconLayout</string>
+    <string name="keyBeaconLayout">beaconLayout</string>
     <string name="keyBeaconBackgroundScanPeriod">beaconBackgroundScanPeriod</string>
     <string name="keyBeaconForegroundScanPeriod">beaconForegroundScanPeriod</string>
-    <string name="valEmpty">""</string>
-    <string name="keyBeaconRangingEnabled">ranging</string>
+    <string name="keyBeaconRanging">ranging</string>
     <string name="keyFistStart">firstStart</string>
     <string name="keyModeId">mode</string>
     <string name="keyAuthentication">authentication</string>
@@ -59,5 +54,6 @@
     <string name="keyIdentification">identification</string>
     <string name="keyOptions">options</string>
     <string name="keyMessaging">messaging</string>
+    <string name="keyInfo">info</string>
 
 </resources>

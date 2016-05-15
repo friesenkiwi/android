@@ -1,167 +1,171 @@
 package org.owntracks.android;
 
-
-import com.crashlytics.android.Crashlytics;
-import io.fabric.sdk.android.Fabric;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.concurrent.TimeUnit;
 
-import org.owntracks.android.activities.ActivityMain;
-import org.owntracks.android.db.ContactLinkDao;
-import org.owntracks.android.db.DaoMaster;
-import org.owntracks.android.db.DaoSession;
-import org.owntracks.android.db.MessageDao;
-import org.owntracks.android.db.WaypointDao;
-import org.owntracks.android.model.Contact;
+import org.owntracks.android.activities.ActivityMap;
+import org.owntracks.android.db.Dao;
+import org.owntracks.android.model.ContactsViewModel;
+import org.owntracks.android.model.FusedContact;
 import org.owntracks.android.services.ServiceBroker;
 import org.owntracks.android.services.ServiceProxy;
+import org.owntracks.android.support.ContactImageProvider;
+import org.owntracks.android.support.EncryptionProvider;
 import org.owntracks.android.support.Events;
+import org.owntracks.android.support.GeocodingProvider;
 import org.owntracks.android.support.Preferences;
-import org.owntracks.android.support.Statistics;
+import org.owntracks.android.support.StatisticsProvider;
+import org.owntracks.android.support.receiver.Parser;
 
+import android.app.Activity;
 import android.app.Application;
+import android.app.KeyguardManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.ApplicationInfo;
-import android.database.sqlite.SQLiteDatabase;
 import android.os.BatteryManager;
+import android.os.Bundle;
+import android.os.Handler;
 import android.provider.Settings.Secure;
+import android.support.v4.util.ArrayMap;
+import android.support.v4.util.TimeUtils;
+import android.text.format.DateUtils;
 import android.util.Log;
-import android.widget.Toast;
-
-import com.google.android.gms.maps.MapsInitializer;
 
 import de.greenrobot.event.EventBus;
 
-public class App extends Application {
+public class App extends Application  {
     private static final String TAG = "App";
 
     private static App instance;
+    private static SimpleDateFormat dateFormater;
+    private static SimpleDateFormat dateFormaterToday;
+
+    private static Handler mainHanler;
+    private static HashMap<String, FusedContact> fusedContacts;
+    private static ContactsViewModel contactsViewModel;
+    private static Activity currentActivity;
     private static boolean inForeground;
-    public static Class mapFragmentClass = ActivityMain.MapFragment.class;
-    private SimpleDateFormat dateFormater;
+    private static int runningActivities = 0;
 
-    private ContactLinkDao contactLinkDao;
-	private WaypointDao waypointDao;
-    private MessageDao messageDao;
+    public static final int MODE_ID_MQTT_PRIVATE =0;
+    public static final int MODE_ID_MQTT_PUBLIC =2;
+    public static final int MODE_ID_HTTP_PRIVATE=3;
 
-    private static HashMap<String, Contact> contacts;
-    private static HashMap<String, Contact> initializingContacts;
 
-    public static final int MODE_ID_PRIVATE=0;
-    public static final int MODE_ID_HOSTED=1;
-    public static final int MODE_ID_PUBLIC=2;
-    private SQLiteDatabase db;
+    public static HashMap<String, FusedContact> getFusedContacts() {
+        return fusedContacts;
+    }
 
     @Override
 	public void onCreate() {
 		super.onCreate();
         instance = this;
-        Preferences preferences = new Preferences(this);
-        Statistics.setTime(this, Statistics.APP_START);
-        if(!BuildConfig.DEBUG) {
-            Log.v(TAG, "Fabric.io crash reporting enabled");
-            Fabric.with(this, new Crashlytics());
-            //final Fabric fabric = new Fabric.Builder(this).kits(new Crashlytics()).build();
-        }
+        dateFormater = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", getResources().getConfiguration().locale);
+        dateFormaterToday = new SimpleDateFormat("HH:mm:ss", getResources().getConfiguration().locale);
+        mainHanler = new Handler(getMainLooper());
+        fusedContacts = new HashMap<>();
+        contactsViewModel =  new ContactsViewModel();
 
-        DaoMaster.OpenHelper helper = new DaoMaster.OpenHelper(this, "org.owntracks.android.db", null) {
-            @Override
-            public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-                DaoMaster.dropAllTables(db, true);
-                onCreate(db);
-            }
-        };
-
-        db = helper.getWritableDatabase();
-        DaoMaster daoMaster = new DaoMaster(db);
-        DaoSession daoSession = daoMaster.newSession();
-		this.contactLinkDao = daoSession.getContactLinkDao();
-		this.waypointDao = daoSession.getWaypointDao();
-        this.messageDao = daoSession.getMessageDao();
-
-		this.dateFormater = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", getResources().getConfiguration().locale);
-		this.contacts = new HashMap<String, Contact>();
-        this.initializingContacts = new HashMap<String, Contact>();
-
-		//Initialize Google Maps and BitmapDescriptorFactory
-		MapsInitializer.initialize(getApplicationContext());
+        StatisticsProvider.initialize(this);
+        Preferences.initialize(this);
+        Parser.initialize(this);
+        ContactImageProvider.initialize(this);
+        GeocodingProvider.initialize(this);
+        Dao.initialize(this);
+        EncryptionProvider.initialize();
 		EventBus.getDefault().register(this);
 
     }
 
-	public static MessageDao getMessageDao() {
-		return instance.messageDao;
-	}
 
-    public static SQLiteDatabase getDb() { return instance.db; }
-    public static WaypointDao getWaypointDao() {
-        return instance.waypointDao;
+    public static void enableForegroundBackgroundDetection() {
+        Log.v(TAG, "enableForegroundBackgroundDetection()");
+        instance.registerActivityLifecycleCallbacks(new LifecycleCallbacks());
+        instance.registerScreenOnReceiver();
     }
 
-	public static ContactLinkDao getContactLinkDao() {
-		return instance.contactLinkDao;
-	}
 
-	public static Context getContext() {
+
+    public static Context getContext() {
 		return instance;
 	}
-
-	public static Contact getContact(String topic) {
-		return instance.contacts.get(topic);
-	}
-
-
-    public static HashMap<String, Contact> getCachedContacts() {
-        return contacts;
+    public static App getInstance() {
+        return instance;
     }
 
+    public static FusedContact getFusedContact(String topic) {
+        return fusedContacts.get(topic);
+    }
+
+    public static ContactsViewModel getContactsViewModel() {
+        return contactsViewModel;
+    }
+
+
+    public static void addFusedContact(final FusedContact c) {
+        Log.v(TAG, "addFusedContact: " + c.getTopic());
+        fusedContacts.put(c.getTopic(), c);
+
+        postOnMainHandler(new Runnable() {
+            @Override
+            public void run() {
+                contactsViewModel.items.add(c);
+            }
+        });
+        EventBus.getDefault().post(c);
+    }
+
+    public static void updateFusedContact(FusedContact c) {
+        EventBus.getDefault().post(c);
+    }
+
+
+    public static void clearFusedContacts() {
+        Log.v(TAG, "clearing fusedContacts");
+        fusedContacts.clear();
+
+        postOnMainHandler(new Runnable() {
+            @Override
+            public void run() {
+                contactsViewModel.items.clear();
+            }
+        });
+    }
+
+    @SuppressWarnings("unused")
     public void onEventMainThread(Events.StateChanged.ServiceBroker e) {
-        if(e.getState() == ServiceBroker.State.CONNECTING) {
-            //Log.v(TAG, "State changed to connecting. Clearing cached contacts");
-            instance.contacts.clear();
-        }
+
+    }
+
+    @SuppressWarnings("unused")
+    public void onEventMainThread(Events.ModeChanged e) {
+        clearFusedContacts();
+        ContactImageProvider.invalidateCache();
     }
 
 
-
-    public void onEvent(Events.ModeChanged e) {
-        instance.contacts.clear();
+    private static void postOnMainHandler(Runnable r) {
+        mainHanler.post(r);
     }
 
-    public static void addContact(Contact c) {
-        instance.contacts.put(c.getTopic(), c);
-        initializingContacts.remove(c.getTopic());
-
-        EventBus.getDefault().post(new Events.ContactAdded(c));
-    }
-
-    public static void addUninitializedContact(Contact c) {
-        instance.initializingContacts.put(c.getTopic(), c);
-    }
-
-    public static Contact getInitializingContact(String topic) {
-        return instance.initializingContacts.get(topic);
-    }
-
-    public static void removeContact(Contact c) {
-        instance.contacts.remove(c.getTopic());
-        EventBus.getDefault().post(new Events.ContactRemoved(c));
+    public static String formatDate(long tstSeconds) {
+        return formatDate(new Date(TimeUnit.SECONDS.toMillis(tstSeconds)));
     }
 
 	public static String formatDate(Date d) {
-		return instance.dateFormater.format(d);
-	}
-
-	public static boolean isDebugBuild() {
-		return 0 != (instance.getApplicationInfo().flags &= ApplicationInfo.FLAG_DEBUGGABLE);
+        if(DateUtils.isToday(d.getTime())) {
+            return dateFormaterToday.format(d);
+        } else {
+            return dateFormater.format(d);
+        }
 	}
 
 	public static String getAndroidId() {
-		return Secure.getString(instance.getContentResolver(),
-				Secure.ANDROID_ID);
+		return Secure.getString(instance.getContentResolver(), Secure.ANDROID_ID);
 	}
 
 	public static int getBatteryLevel() {
@@ -170,30 +174,25 @@ public class App extends Application {
 		return batteryStatus != null ? batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) : 0;
 	}
 
-	public static void showLocationNotAvailableToast() {
-		Toast.makeText(App.getContext(), App.getContext()
-						.getString(R.string.currentLocationNotAvailable), Toast.LENGTH_SHORT).show();
-	}
+    @SuppressWarnings("unused")
+    public void onEvent(Events.BrokerChanged e) {
+        clearFusedContacts();
+    }
 
-
-	public void onEventMainThread(Events.BrokerChanged e) {
-		contacts.clear();
-	}
-
-    public static void onEnterForeground() {
+    private static void onEnterForeground() {
         Log.v(TAG, "onEnterForeground");
-        inForeground = true; 
+        inForeground = true;
         ServiceProxy.runOrBind(getContext(), new Runnable() {
 
             @Override
             public void run() {
                 ServiceProxy.getServiceLocator().enableForegroundMode();
-                ServiceProxy.getServiceBeacon().setBackgroundMode(false);
+                ServiceProxy.getServiceBeacon().enableForegroundMode();
             }
         });
     }
 
-    public static void onEnterBackground() {
+    private static void onEnterBackground() {
         Log.v(TAG, "onEnterBackground");
         inForeground = false;
         ServiceProxy.runOrBind(getContext(), new Runnable() {
@@ -201,7 +200,8 @@ public class App extends Application {
             @Override
             public void run() {
                 ServiceProxy.getServiceLocator().enableBackgroundMode();
-                ServiceProxy.getServiceBeacon().setBackgroundMode(true);
+                ServiceProxy.getServiceBeacon().enableBackgroundMode();
+
             }
         });
     }
@@ -209,4 +209,82 @@ public class App extends Application {
     public static boolean isInForeground() {
         return inForeground;
     }
+
+    public static Activity getCurrentActivity() {
+        return currentActivity;
+    }
+
+    public static void removeContact(FusedContact contact) {
+        //TODO
+    }
+
+    public static Class<?> getRootActivityClass(){
+        return ActivityMap.class;
+    }
+
+
+    /*
+     * Keeps track of running activities and if the app is in running in the foreground or background
+     */
+    private static final class LifecycleCallbacks implements ActivityLifecycleCallbacks {
+        public void onActivityStarted(Activity activity) {
+            Log.v(TAG, "onActivityStarted:" + activity);
+
+            App.runningActivities++;
+            currentActivity = activity;
+            if (App.runningActivities == 1) App.onEnterForeground();
+        }
+
+        public void onActivityStopped(Activity activity) {
+            Log.v(TAG, "onActivityStopped:" + activity);
+            App.runningActivities--;
+            if(currentActivity == activity)  currentActivity = null;
+            if (App.runningActivities == 0) App.onEnterBackground();
+        }
+
+        public void onActivityResumed(Activity activity) {  }
+        public void onActivityPaused(Activity activity) {  }
+        public void onActivityCreated(Activity activity, Bundle savedInstanceState) { }
+        public void onActivitySaveInstanceState(Activity activity, Bundle outState) { }
+        public void onActivityDestroyed(Activity activity) { }
+    }
+    private void registerScreenOnReceiver() {
+        final IntentFilter theFilter = new IntentFilter();
+        /** System Defined Broadcast */
+        theFilter.addAction(Intent.ACTION_SCREEN_ON);
+        theFilter.addAction(Intent.ACTION_SCREEN_OFF);
+
+        // Sets foreground and background modes based on device lock and unlock if the app is active
+
+
+
+
+        BroadcastReceiver screenOnOffReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String strAction = intent.getAction();
+
+                KeyguardManager myKM = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE);
+
+                if (strAction.equals(Intent.ACTION_SCREEN_OFF) || strAction.equals(Intent.ACTION_SCREEN_ON))
+                {
+                    if( myKM.inKeyguardRestrictedInputMode())
+                    {
+                        if(App.isInForeground())
+                            App.onEnterBackground();
+                    } else
+                    {
+                        if(App.isInForeground())
+                            App.onEnterBackground();
+
+                    }
+                }
+            }
+        };
+
+        getApplicationContext().registerReceiver(screenOnOffReceiver, theFilter);
+
+    }
+
+
 }

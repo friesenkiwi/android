@@ -1,6 +1,5 @@
 package org.owntracks.android.support;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
@@ -17,8 +16,8 @@ import android.util.Log;
 public class ReverseGeocodingTask extends AsyncTask<GeocodableLocation, Void, Void> {
 	private static final String TAG = "ReverseGeocodingTask";
 
-    private Context mContext;
-    private Handler mHandler;
+    private final Context mContext;
+    private final Handler mHandler;
 	public static final int GEOCODER_RESULT = 3452;
 	public static final int GEOCODER_NORESULT = 3453;
 
@@ -38,7 +37,6 @@ public class ReverseGeocodingTask extends AsyncTask<GeocodableLocation, Void, Vo
 
 		GeocodableLocation l = params[0];
 		int r = GEOCODER_NORESULT;
-
 		// Return right away if there is already geocoder information available
 		if (l.getGeocoder() == null) {
 			try {
@@ -50,15 +48,16 @@ public class ReverseGeocodingTask extends AsyncTask<GeocodableLocation, Void, Vo
 
 
 					if (addresses.get(0) != null) {
-                        StringBuffer g = new StringBuffer();
-                        if(addresses.get(0).getAddressLine(0) != null)
-                            g.append(addresses.get(0).getAddressLine(0)).append(", ");
-                        if(addresses.get(0).getLocality() != null)
-                            g.append(addresses.get(0).getLocality());
-                        else if(addresses.get(0).getCountryName() != null)
-                            g.append(addresses.get(0).getCountryName());
+						StringBuilder g = new StringBuilder();
+						if(addresses.get(0).getAddressLine(0) != null)
+							g.append(addresses.get(0).getAddressLine(0)).append(", ");
+						if(addresses.get(0).getLocality() != null)
+							g.append(addresses.get(0).getLocality());
+						else if(addresses.get(0).getCountryName() != null)
+							g.append(addresses.get(0).getCountryName());
 
-                        l.setGeocoder(g.toString());
+						l.setGeocoder(g.toString());
+
                     } else
 						l.setGeocoder(null);
 

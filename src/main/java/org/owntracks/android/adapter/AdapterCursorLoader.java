@@ -2,33 +2,51 @@ package org.owntracks.android.adapter;
 
 import android.content.Context;
 import android.database.Cursor;
+import android.graphics.drawable.Drawable;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.widget.RecyclerView;
-import android.util.Log;
-import android.util.SparseArray;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.TextView;
 
 import org.owntracks.android.R;
-import org.owntracks.android.db.Message;
 
 
 public abstract class AdapterCursorLoader extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     private static final String TAG = "AdapterCursorLoader";
     private static final String ID_COLUMN = "_id";
-    protected final Context mContext;
-    protected OnViewHolderClickListener onViewHolderClickListener;
+    private final Context mContext;
+    private OnViewHolderClickListener onViewHolderClickListener;
 
-    public static class ClickableViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
-        public TextView mTextView;
+    public static class ClickableViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener, View.OnLongClickListener {
         public View rootView;
         private OnViewHolderClickListener<ClickableViewHolder> onClickListener;
+
+        private Drawable defaultBackground;
         public ClickableViewHolder(View view) {
             super(view);
             this.rootView = view;
-            mTextView = (TextView)view.findViewById(R.id.section_text);
             itemView.setOnClickListener(this);
+            itemView.setOnLongClickListener(this);
+        }
+
+        public void setSelected(boolean selected) {
+            if(selected && !this.rootView.isSelected()) {
+                defaultBackground = this.rootView.getBackground();
+                this.rootView.setBackgroundDrawable(ContextCompat.getDrawable(this.rootView.getContext(), R.drawable.selectable_row));
+                this.rootView.setSelected(true);
+                return;
+            }
+
+            if(!selected && this.rootView.isSelected()) {
+                defaultBackground.setVisible(false, false);
+                this.rootView.setBackgroundDrawable(defaultBackground);
+                this.rootView.setSelected(false);
+                defaultBackground.setVisible(true, false);
+
+                return;
+            }
+
         }
 
         @Override
@@ -38,9 +56,18 @@ public abstract class AdapterCursorLoader extends RecyclerView.Adapter<RecyclerV
 
         }
 
+        @Override
+        public boolean onLongClick(View v) {
+            if(onClickListener != null)
+                return this.onClickListener.onViewHolderLongClick(v, this);
+            return false;
+        }
+
         public void setOnViewHolderClickListener(OnViewHolderClickListener listener) {
             this.onClickListener = listener;
         }
+
+
     }
 
 
@@ -48,7 +75,7 @@ public abstract class AdapterCursorLoader extends RecyclerView.Adapter<RecyclerV
     private boolean mDataValid;
 
 
-    public AdapterCursorLoader(Context context) {
+    AdapterCursorLoader(Context context) {
         mContext = context;
         mCursor = null;
         mDataValid = false;
@@ -67,11 +94,11 @@ public abstract class AdapterCursorLoader extends RecyclerView.Adapter<RecyclerV
         return 0;
     }
 
-    public Cursor getCursor() {
+    private Cursor getCursor() {
         return mCursor;
     }
 
-    public abstract void onBindViewHolder(RecyclerView.ViewHolder viewHolder, Cursor cursor, int position);
+    protected abstract void onBindViewHolder(RecyclerView.ViewHolder viewHolder, Cursor cursor, int position);
 
 
     @Override
@@ -87,18 +114,22 @@ public abstract class AdapterCursorLoader extends RecyclerView.Adapter<RecyclerV
         onBindViewHolder(viewHolder, mCursor, position);
     }
 
-    public abstract ClickableViewHolder onCreateItemViewHolder(ViewGroup parent, int viewType);
+    protected abstract ClickableViewHolder onCreateItemViewHolder(ViewGroup parent, int viewType);
 
     @Override
     public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
         ClickableViewHolder v = onCreateItemViewHolder(parent,viewType);
-        if(onViewHolderClickListener != null)
+        if(onViewHolderClickListener != null) {
             v.setOnViewHolderClickListener(onViewHolderClickListener);
+        }
+
         return v;
     }
 
     public interface OnViewHolderClickListener<T extends ClickableViewHolder> {
         void onViewHolderClick(View rootView, T viewHolder);
+        boolean onViewHolderLongClick(View rootView, T viewHolder);
+
     }
 
 

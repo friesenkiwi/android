@@ -7,6 +7,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.location.Location;
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.util.Log;
 
 import com.google.android.gms.maps.model.LatLng;
@@ -20,6 +22,7 @@ public class GeocodableLocation extends Location {
     private String tag;
     private Object extra;
     private Date date;
+
 
 	public String getTag() {
 		return this.tag;
@@ -93,8 +96,7 @@ public class GeocodableLocation extends Location {
 		super(location);
 		this.geocoder = geocoder;
 		if (location != null)
-			this.latlng = new LatLng(location.getLatitude(),
-					location.getLongitude());
+			this.latlng = new LatLng(location.getLatitude(), location.getLongitude());
 	}
 
 	public static GeocodableLocation fromJsonObject(JSONObject json) {
@@ -195,9 +197,35 @@ public class GeocodableLocation extends Location {
 	public LatLng getLatLng() {
 		return this.latlng;
 	}
-
 	public Date getDate() {
 		return new Date(getLocation().getTime());
 	}
+
+
+
+	public int describeContents() {
+		return 0;
+	}
+
+	public void writeToParcel(Parcel out, int flags) {
+		super.writeToParcel(out, flags);
+		out.writeString(geocoder);
+	}
+
+	public static final Parcelable.Creator<GeocodableLocation> CREATOR = new Parcelable.Creator<GeocodableLocation>() {
+		public GeocodableLocation createFromParcel(Parcel in) {
+			Location l = Location.CREATOR.createFromParcel(in);
+			GeocodableLocation gl = new GeocodableLocation(l);
+
+			gl.geocoder= in.readString();
+
+			return gl;
+		}
+
+		public GeocodableLocation[] newArray(int size) {
+			return new GeocodableLocation[size];
+		}
+	};
+
 
 }

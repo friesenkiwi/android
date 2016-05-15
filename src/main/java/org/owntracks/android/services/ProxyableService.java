@@ -2,10 +2,15 @@ package org.owntracks.android.services;
 
 import android.content.Intent;
 
+import org.owntracks.android.support.Events;
+
 public interface ProxyableService {
-	public void onCreate(ServiceProxy c);
+	void onCreate(ServiceProxy c);
 
-	public void onDestroy();
+	void onDestroy();
 
-	public int onStartCommand(Intent intent, int flags, int startId);
+	void onStartCommand(Intent intent, int flags, int startId);
+
+	@SuppressWarnings("unused")
+	void onEvent(Events.Dummy event);
 }

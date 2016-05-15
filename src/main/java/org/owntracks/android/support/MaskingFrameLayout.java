@@ -3,7 +3,6 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
@@ -12,6 +11,8 @@ import android.graphics.drawable.AnimationDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Handler;
+import android.support.annotation.DrawableRes;
+import android.support.annotation.NonNull;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.ViewTreeObserver;
@@ -157,7 +158,7 @@ public class MaskingFrameLayout extends FrameLayout {
         }
     }
 
-    public void setMask(Drawable input) {
+    private void setMask(Drawable input) {
         initMask(input);
         swapBitmapMask(makeBitmapMask(mDrawableMask));
         invalidate();
@@ -227,7 +228,7 @@ public class MaskingFrameLayout extends FrameLayout {
 
     //Animation
     @Override
-    public void invalidateDrawable(Drawable dr) {
+    public void invalidateDrawable(@DrawableRes Drawable dr) {
         if (dr != null) {
             initMask(dr);
             swapBitmapMask(makeBitmapMask(dr));
@@ -260,7 +261,7 @@ public class MaskingFrameLayout extends FrameLayout {
 
     //Utils
     private PorterDuffXfermode getModeFromInteger(int index) {
-        PorterDuff.Mode mode = null;
+        PorterDuff.Mode mode;
         switch (index) {
             case MODE_ADD:
                 if (Build.VERSION.SDK_INT >= 11) {

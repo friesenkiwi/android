@@ -2,27 +2,18 @@ package org.owntracks.android.support;
 
 import java.util.Date;
 
-import org.owntracks.android.App;
 import org.owntracks.android.db.Message;
 import org.owntracks.android.db.Waypoint;
-import org.owntracks.android.messages.CardMessage;
-import org.owntracks.android.messages.ConfigurationMessage;
-import org.owntracks.android.messages.MsgMessage;
-import org.owntracks.android.messages.TransitionMessage;
-import org.owntracks.android.messages.WaypointMessage;
-import org.owntracks.android.model.Contact;
+import org.owntracks.android.model.FusedContact;
 import org.owntracks.android.model.GeocodableLocation;
-import org.owntracks.android.messages.LocationMessage;
-import org.owntracks.android.services.ServiceBroker;
-import org.owntracks.android.services.ServiceLocator;
 
 import android.location.Location;
 
 public class Events {
 
     public static class ModeChanged extends E {
-        int newModeId;
-        int oldModeId;
+        final int newModeId;
+        final int oldModeId;
 
         public ModeChanged(int oldModeId, int newModeId) {
             this.newModeId = newModeId;
@@ -38,7 +29,7 @@ public class Events {
     }
 
 	public static class WaypointTransition extends E {
-		Waypoint w;
+		final Waypoint w;
 		int transition;
 
 		public WaypointTransition(Waypoint w, int transition) {
@@ -58,7 +49,7 @@ public class Events {
 	}
 
 	public static class WaypointAddedByUser extends E {
-		Waypoint w;
+		final Waypoint w;
 
 		public WaypointAddedByUser(Waypoint w) {
 			super();
@@ -71,7 +62,7 @@ public class Events {
 
 	}
     public static class WaypointAdded extends E {
-        Waypoint w;
+        final Waypoint w;
 
         public WaypointAdded(Waypoint w) {
             super();
@@ -86,7 +77,7 @@ public class Events {
 
 
     public static class WaypointUpdated extends E {
-        Waypoint w;
+        final Waypoint w;
 
         public WaypointUpdated(Waypoint w) {
             super();
@@ -100,7 +91,7 @@ public class Events {
     }
 
     public static class WaypointUpdatedByUser extends E {
-        Waypoint w;
+        final Waypoint w;
 
         public WaypointUpdatedByUser(Waypoint w) {
             super();
@@ -115,7 +106,7 @@ public class Events {
 
 
 	public static class WaypointRemoved extends E {
-		Waypoint w;
+		final Waypoint w;
 
 		public WaypointRemoved(Waypoint w) {
 			super();
@@ -129,7 +120,7 @@ public class Events {
 	}
 
 	public static abstract class E {
-		Date date;
+		final Date date;
 
 		public E() {
 			this.date = new Date();
@@ -146,11 +137,11 @@ public class Events {
 		}
 	}
 
-	public static class PublishSuccessfull extends E {
-		Object extra;
-        boolean wasQueued;
+	public static class PublishSuccessful extends E {
+		final Object extra;
+        final boolean wasQueued;
 
-		public PublishSuccessfull(Object extra, boolean wasQueued) {
+		public PublishSuccessful(Object extra, boolean wasQueued) {
 			super();
 			this.extra = extra;
             this.wasQueued = wasQueued;
@@ -163,7 +154,7 @@ public class Events {
 	}
 
 	public static class CurrentLocationUpdated extends E {
-		GeocodableLocation l;
+		final GeocodableLocation l;
 
 		public CurrentLocationUpdated(Location l) {
 			super();
@@ -181,209 +172,67 @@ public class Events {
 	}
 
 	public static class ContactAdded extends E {
-		Contact contact;
+        final FusedContact contact;
 
-		public ContactAdded(Contact f) {
+		public ContactAdded(FusedContact f) {
 			super();
 			this.contact = f;
 		}
 
-		public Contact getContact() {
+		public FusedContact getContact() {
 			return this.contact;
 		}
 
 	}
 
-    public static class ContactRemoved extends E{
-        Contact contact;
+    public static class FusedContactAdded extends E {
+        final FusedContact contact;
 
-        public ContactRemoved(Contact f) {
+        public FusedContactAdded(FusedContact f) {
             super();
             this.contact = f;
         }
 
-        public Contact getContact() {
+        public FusedContact getContact() {
             return this.contact;
         }
     }
 
-    public static class ClearLocationMessageReceived extends E{
-        Contact c;
-        public ClearLocationMessageReceived(Contact c) {
+    public static class FusedContactUpdated extends E {
+        final FusedContact contact;
+
+        public FusedContactUpdated(FusedContact f) {
             super();
-            this.c = c;
+            this.contact = f;
         }
 
-        public Contact getContact() {
-            return c;
+        public FusedContact getContact() {
+            return this.contact;
         }
     }
-
-    public static class MsgMessageReceived {
-        MsgMessage message;
-        String topic;
-        public MsgMessageReceived(MsgMessage message, String topic) {
-            super();
-            this.message = message;
-            this.topic = topic;
-
-        }
-        public MsgMessage getMessage() {
-            return this.message;
-        }
-        public String getTopic() {
-            return this.topic;
-        }
-
-    }
-
-    public static class CardMessageReceived extends E{
-        String topic;
-        CardMessage message;
-        public CardMessageReceived(CardMessage m, String topic) {
-            super();
-            this.message = m;
-            this.topic = topic;
-
-        }
-
-        public String getTopic() {
-            return this.topic;
-        }
-
-        public CardMessage getCardMessage() {
-            return this.message;
-        }
-    }
-
-
-
-
-    public static class LocationMessageReceived extends E {
-		private String t;
-		private LocationMessage m;
-
-		public LocationMessageReceived(LocationMessage m, String t) {
-			super();
-			this.t = t;
-			this.m = m;
-		}
-
-		public String getTopic() {
-			return this.t;
-		}
-
-		public LocationMessage getLocationMessage() {
-			return this.m;
-		}
-
-		public GeocodableLocation getGeocodableLocation() {
-			return this.m.getLocation();
-		}
-	}
-
-    public static class WaypointMessageReceived extends E {
-        private String t;
-        private WaypointMessage m;
-
-        public WaypointMessageReceived(WaypointMessage m, String t) {
-            super();
-            this.t = t;
-            this.m = m;
-        }
-
-        public String getTopic() {
-            return this.t;
-        }
-
-        public WaypointMessage getLocationMessage() {
-            return this.m;
-        }
-    }
-
-    public static class ConfigurationMessageReceived extends E {
-        private String t;
-        private ConfigurationMessage m;
-
-        public ConfigurationMessageReceived(ConfigurationMessage m, String t) {
-            super();
-            this.t = t;
-            this.m = m;
-        }
-
-        public String getTopic() {
-            return this.t;
-        }
-
-        public ConfigurationMessage getConfigurationMessage() {
-            return this.m;
-        }
-    }
-
-    public static class TransitionMessageReceived extends E {
-        private String t;
-        private TransitionMessage m;
-
-        public TransitionMessageReceived(TransitionMessage m, String t) {
-            super();
-            this.t = t;
-            this.m = m;
-        }
-
-        public String getTopic() {
-            return this.t;
-        }
-
-        public TransitionMessage getTransitionMessage() {
-            return this.m;
-        }
-        public GeocodableLocation getGeocodableLocation() {
-            return this.m.getLocation();
-        }
-
-        public int getTransition() {
-            return this.m.getTransition();
-        }
-
-    }
-
 
     public static class ContactUpdated extends E {
-		private Contact c;
+		private final FusedContact c;
 
-		public ContactUpdated(Contact c) {
+		public ContactUpdated(FusedContact c) {
 			super();
 			this.c = c;
 		}
 
-		public Contact getContact() {
+		public FusedContact getContact() {
 			return this.c;
 		}
-
 	}
 
-    public static class MessageAdded extends E{
-        private Message m;
-        public MessageAdded(Message m) {
-            this.m = m;
-        }
-        public Message getMessage(){
-            return m;
-        }
-    }
-	
+
 	public static class BrokerChanged extends E {
 		public BrokerChanged() {}
 	}
 
 	public static class StateChanged {
 		public static class ServiceBroker extends E {
-			private org.owntracks.android.services.ServiceBroker.State state;
-			private Object extra;
-
-			public ServiceBroker(org.owntracks.android.services.ServiceBroker.State state) {
-				this(state, null);
-			}
+			private final org.owntracks.android.services.ServiceBroker.State state;
+			private final Object extra;
 
 			public ServiceBroker(org.owntracks.android.services.ServiceBroker.State state,
 					Object extra) {
@@ -401,25 +250,16 @@ public class Events {
 			}
 
 		}
-
-
-        public static class ServiceBeacon extends E {
-            private org.owntracks.android.services.ServiceBeacon.State state;
-
-            public ServiceBeacon(org.owntracks.android.services.ServiceBeacon.State state) {
-                this.state = state;
-            }
-
-            public org.owntracks.android.services.ServiceBeacon.State getState() {
-                return this.state;
-            }
-
-        }
-
-
-
     }
 
-
+    public static class PermissionGranted extends E {
+        private final String permission;
+        public PermissionGranted(String p) {
+            this.permission = p;
+        }
+        public String getPermission() {
+            return permission;
+        }
+    }
 
 }

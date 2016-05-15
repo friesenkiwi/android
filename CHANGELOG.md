@@ -1,7 +1,107 @@
 OwnTracks Android App Release Notes
 ===================================
-## OwnTracks 0.5.21 
->Release date: 2015-XX-XX
+
+## OwnTracks 0.6.10
+>Release date: 2016-03-28 for beta testers
+* [FIX] #338 - Bluetooth beacon functionality can cause battery drain
+* [FIX] #344 - Waypoints loose "shared" indicator on import enhancement
+* [FIX] #343 - 0.6.9: waypoint export should say 'queued'
+* [FIX] #341 - remove the *map center* button on the *Friends* page
+
+## OwnTracks 0.6.09
+>Release date: 2016-03-25
+* [FIX] #339 - Latest Android version doesn't accept CA and client crts
+* [FIX] #338 - crash on preferences click
+
+## OwnTracks 0.6.08
+>Release date: 2016-03-25 for alpha testers
+* [FIX] Changed enabled waypoint label (again)
+* [FIX] Notification action to report location
+* [NEW] Websocket support in private mode
+* [NEW] Geocoder in notification
+
+## OwnTracks 0.6.07
+>Release date: 2016-03-24 for alpha testers
+* [FIX] Changed enabled waypoint label
+* [FIX] Transition messages not send
+* [FIX] Configuration import didn't respect target mode
+* [NEW] Refactored message handling code
+
+## OwnTracks 0.6.06
+>Release date: 2016-03-19 for alpha testers
+* [FIX] Fixed crash in GeocodingProvider
+* [FIX] #336 - Fixed crash in regions list
+* [FIX] Fixed setWaypoints remote cmd
+* [NEW] Dropped remoteCommandReportLocation preferences key in favor of the general cmd setting used by iOS
+* [NEW] Prepared message backend for HTTP mode
+* [NEW] Changed monitoring settings of beacon service
+
+## OwnTracks 0.6.05
+>Release date: 2016-03-16 for alpha testers
+* [FIX] #335 bat -> batt in location payloads
+* [FIX] Screen flicker when switching modes
+* [NEW] #287 - Export waypoints via MQTT
+
+## OwnTracks 0.6.04
+>Release date: 2016-03-14 for alpha testers
+* [FIX] #333 - active beacon event shows inactive in Region list
+* [FIX] #320 - import otrc from exported on 061 fails bug
+* [FIX] Configuration export didn't include type attribute for exported waypoints
+* [FIX] No tranisitions sent when exiting a beacon region
+
+## OwnTracks 0.6.02
+>Release date: 2016-03-11 for alpha testers
+* [FIX] Empty map due to wrong package name
+* [FIX] Crash on Status activity
+* [FIX] Queue lenght on Status activity was always 0
+* [FIX] #323 061: region for Beacon bug
+* [FIX] #322 061: waypoints marked as Shared are not being published
+* [NEW] Update support libraries to 23.2.1
+* [NEW] Date format for today skips yyyy-mm-dd prefix
+* [NEW] Removed connectivity snackbar from connection preferences (replaced by Toast)
+
+## OwnTracks 0.6.01
+>Release date: 2016-03-11 for alpha testers
+* [NEW] - Completely rewritten message backend
+* [NEW] - Reimplemented Google Maps
+* [NEW] - Rewrote preferences code
+* [NEW] - Rewrote contact image handling
+* [NEW] - Added BLE beacon support
+* [NEW] - Dropped OwnTracks Hosted support 
+* [NEW] - Dropped Message support 
+* [NEW] - Removed unneeded permissions 
+* [NEW] - Support for Android M permissions 
+* [NEW] - Improved handling of certificates  
+* [NEW] - Added support for symmetric payload encryption  
+* [NEW] - Improved reconnect behaviour (#271, #297, #302)  
+
+* [FIX] #294 - Android app doesn't suscribe right topic for Messages
+* [FIX] #289 - Go back from THANKS Menu
+
+
+
+## OwnTracks 0.5.23
+>Release date: 2015-10-11 for beta testers
+* [FIX] #271 - Automatic reconnect fails
+* [FIX] #273 - Updated support link
+* [FIX] #278 - Waypoints not exorted
+* [FIX] Changed locator interval unit to seconds to be in line with iOS
+* [FIX] Not currectly subscribed to cmd topic
+* [NEW] - Simplified notification preferences
+* [NEW] - Added dedicated notifications for messages and events
+
+## OwnTracks 0.5.22
+>Release date: 2015-09-17
+* [NEW] - Updated dependencies
+* [NEW] - Replaced Google Maps with MapBox
+* [NEW] - Added support for tid contact images
+
+## OwnTracks 0.5.21
+>Release date: 2015-08-23 for alpha testers
+* [FIX] #214 - Hosted .otrc file not associated with OwnTracks app
+* [FIX] #235 - Notification vibrate switch ignored
+* [FIX] #234 - Removed statistics page when not a debug build
+* [FIX] #209 - Added restart button after importing preferences
 * [FIX] #236 - Disconnection with similar devices due to equal MQTT client IDs. Reported and fixed by @friesenkiwi. 
 * [FIX] #232 - Statistics page layout could overflow on Android 4.4.x. Reported by @stylpen.
 * [FIX] #233 - Export page layout could overflow on Android 4.4.x. Reported by @stylpen.
