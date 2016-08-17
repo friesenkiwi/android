@@ -27,15 +27,15 @@ dependencies {
     compile files('libs/kalium-jni-1.0.0-SNAPSHOT.jar')
 
     // Support libraries
-    compile 'com.android.support:support-v4:23.2.1'
-    compile 'com.android.support:appcompat-v7:23.2.1'
-    compile 'com.android.support:design:23.2.1'
-    compile 'com.android.support:recyclerview-v7:23.2.1'
+    compile 'com.android.support:support-v4:24.1.1'
+    compile 'com.android.support:appcompat-v7:24.1.1'
+    compile 'com.android.support:design:24.1.1'
+    compile 'com.android.support:recyclerview-v7:24.1.1'
 
     // Play Services libraries
-    compile 'com.google.android.gms:play-services-maps:8.4.0'
-    compile 'com.google.android.gms:play-services-location:8.4.0'
-    compile 'com.google.android.gms:play-services-base:8.4.0'
+ //   compile 'com.google.android.gms:play-services-maps:8.4.0'
+ //   compile 'com.google.android.gms:play-services-location:8.4.0'
+ //   compile 'com.google.android.gms:play-services-base:8.4.0'
 
     // Utility libraries
     compile 'de.greenrobot:eventbus:2.4.0'
