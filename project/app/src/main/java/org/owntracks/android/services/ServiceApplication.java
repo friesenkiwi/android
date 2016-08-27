@@ -42,7 +42,7 @@ public class ServiceApplication implements ProxyableService, StaticHandlerInterf
     }
 
 	public static boolean checkPlayServices() {
-        return GoogleApiAvailability.checkPlayServices(App.getContext());
+        return GoogleApiAvailability.checkPlayServices(App.getContext(), true);
     }
 
     public boolean publishWaypointsMessage() {
