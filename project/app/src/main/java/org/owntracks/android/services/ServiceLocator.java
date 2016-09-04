@@ -2,6 +2,7 @@ package org.owntracks.android.services;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import org.greenrobot.eventbus.Subscribe;
@@ -24,16 +25,21 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Looper;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
 
+import com.mapzen.android.lost.api.Geofence;
+import com.mapzen.android.lost.api.GeofencingEvent;
+import com.mapzen.android.lost.api.GeofencingRequest;
 import com.mapzen.android.lost.api.LostApiClient;
-//import com.mapzen.android.lost.api.Geofence;
 //import com.mapzen.android.lost.api.GeofencingEvent;
-//import com.mapzen.android.lost.api.GeofencingRequest;
 import com.mapzen.android.lost.api.LocationListener;
 import com.mapzen.android.lost.api.LocationRequest;
 import com.mapzen.android.lost.api.LocationServices;
+import com.mapzen.android.lost.api.PendingResult;
+import com.mapzen.android.lost.api.ResultCallback;
+import com.mapzen.android.lost.api.Status;
 
 import timber.log.Timber;
 
@@ -146,13 +152,14 @@ public class ServiceLocator implements ProxyableService, LostApiClient.Connectio
 
     }
 
-    /*
+
 	public void onFenceTransition(Intent intent) {
+
         GeofencingEvent event = GeofencingEvent.fromIntent(intent);
         Timber.v("onFenceTransistion");
         if(event != null){
             if(event.hasError()) {
-                Timber.e("Geofence event has error: " + event.getErrorCode());
+                Timber.e("Geofence event has error: %s", event.getErrorCode());
                 return;
             }
 
@@ -164,7 +171,7 @@ public class ServiceLocator implements ProxyableService, LostApiClient.Connectio
                     Waypoint w = this.waypointDao.queryBuilder().where(WaypointDao.Properties.GeofenceId.eq(event.getTriggeringGeofences().get(index).getRequestId())).limit(1).unique();
 
                     if (w != null) {
-                        Timber.v("Waypoint triggered " + w.getDescription() + " transition: " + transition);
+                        Timber.v("Waypoint triggered %s transition: %s", w.getDescription(), transition);
                         w.setLastTriggered(System.currentTimeMillis());
                         this.waypointDao.update(w);
                         App.getEventBus().postSticky(new Events.WaypointTransition(w, transition));
@@ -173,8 +180,9 @@ public class ServiceLocator implements ProxyableService, LostApiClient.Connectio
                 }
             }
         }
+
 	}
-*/
+
 
 
 	private boolean shouldPublishLocation() {
@@ -340,7 +348,7 @@ public class ServiceLocator implements ProxyableService, LostApiClient.Connectio
         if (ServiceLocator.RECEIVER_ACTION_PUBLISH_LASTKNOWN_MANUAL.equals(intent.getAction())) {
             reportLocationManually();
         } else if (intent.getAction().equals(ServiceLocator.RECEIVER_ACTION_GEOFENCE_TRANSITION)) {
-          //  onFenceTransition(intent);
+            onFenceTransition(intent);
         } else {
             Timber.e("Received unknown intent action: %s", intent.getAction());
         }
@@ -514,7 +522,7 @@ public class ServiceLocator implements ProxyableService, LostApiClient.Connectio
 	}
 
 	private void requestGeofences() {
-        /*
+
         Timber.v("loader thread:%s, isMain:%s", Looper.myLooper(), Looper.myLooper() == Looper.getMainLooper());
 		if (!isReady())
 			return;
@@ -522,7 +530,7 @@ public class ServiceLocator implements ProxyableService, LostApiClient.Connectio
 		List<Geofence> fences = new ArrayList<>();
 		for (Waypoint w : loadWaypointsForCurrentModeWithValidGeofence()) {
 
-            Timber.v("requestGeofences - " + w.getDescription());
+            Timber.v("requestGeofences - %s", w.getDescription());
 			// if id is null, waypoint is not added yet
 			if (w.getGeofenceId() == null) {
 				w.setGeofenceId(UUID.randomUUID().toString());
@@ -533,12 +541,12 @@ public class ServiceLocator implements ProxyableService, LostApiClient.Connectio
 
             Geofence geofence = new Geofence.Builder()
 					.setRequestId(w.getGeofenceId())
-					.setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER | Geofence.GEOFENCE_TRANSITION_EXIT)
-                    .setNotificationResponsiveness(30*1000)
+					//.setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER | Geofence.GEOFENCE_TRANSITION_EXIT)
+//                    .setNotificationResponsiveness(30*1000)
 					.setCircularRegion(w.getGeofenceLatitude(), w.getGeofenceLongitude(), w.getGeofenceRadius())
 					.setExpirationDuration(Geofence.NEVER_EXPIRE).build();
 
-            Timber.v("adding geofence for waypoint " + w.getDescription() + " mode: " + w.getModeId() );
+            Timber.v("adding geofence for waypoint %s mode: %s", w.getDescription(), w.getModeId() );
 			fences.add(geofence);
 		}
 
@@ -548,7 +556,8 @@ public class ServiceLocator implements ProxyableService, LostApiClient.Connectio
 
 
         try {
-
+            LocationServices.GeofencingApi.addGeofences(getGeofencingRequest(fences), ServiceProxy.getBroadcastIntentForService(context, ServiceProxy.SERVICE_LOCATOR, ServiceLocator.RECEIVER_ACTION_GEOFENCE_TRANSITION, null));
+            /*
             PendingResult<Status> r = LocationServices.GeofencingApi.addGeofences(apiClient, getGeofencingRequest(fences), ServiceProxy.getBroadcastIntentForService(context, ServiceProxy.SERVICE_LOCATOR, ServiceLocator.RECEIVER_ACTION_GEOFENCE_TRANSITION, null));
             r.setResultCallback(new ResultCallback<Status>() {
                 @Override
@@ -562,12 +571,13 @@ public class ServiceLocator implements ProxyableService, LostApiClient.Connectio
                     }
                 }
             });
+            */
             hasLocationPermission = true;
 
         }catch (SecurityException e) {
             handleSecurityException(e);
         }
-        */
+
 	}
 
     private void handleSecurityException(@Nullable  SecurityException e) {
@@ -577,14 +587,15 @@ public class ServiceLocator implements ProxyableService, LostApiClient.Connectio
         ServiceProxy.getServiceNotification().notifyMissingPermissions();
     }
 
-/*
+
     private GeofencingRequest getGeofencingRequest(List<Geofence> fences) {
         GeofencingRequest.Builder  builder = new GeofencingRequest.Builder();
-        builder.setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER); //trigger transition when geofence is setup and device is already in it
+        //builder.setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER); //trigger transition when geofence is setup and device is already in it
         builder.addGeofences(fences);
+      //  builder.addGeofence(fences.get(0));
         return builder.build();
     }
-*/
+
 	private void removeGeofence(Waypoint w) {
 		List<Waypoint> l = new LinkedList<>();
 		l.add(w);
@@ -613,9 +624,11 @@ public class ServiceLocator implements ProxyableService, LostApiClient.Connectio
 	private void removeGeofencesById(List<String> ids) {
 		if (ids.isEmpty())
 			return;
+
+        LocationServices.GeofencingApi.removeGeofences(ids);
 /*
-        PendingResult<Status> r = LocationServices.GeofencingApi.removeGeofences(apiClient, ids);
-        r.setResultCallback(new ResultCallback<Status>() {
+        PendingResult<?> r = LocationServices.GeofencingApi.removeGeofences(ids);
+        r.setResultCallback(new ResultCallback<?>() {
             @Override
             public void onResult(@NonNull Status status) {
                 if (status.isSuccess()) {
@@ -623,7 +636,7 @@ public class ServiceLocator implements ProxyableService, LostApiClient.Connectio
                 } else if (status.hasResolution()) {
                     Timber.v("Geofence removal failed. HasResolution");
                 } else {
-                    Timber.v("Geofence removal failed. " + status.getStatusMessage());
+                    Timber.v("Geofence removal failed. %s", status.getStatusMessage());
                 }
             }
         });
