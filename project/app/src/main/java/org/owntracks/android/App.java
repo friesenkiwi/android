@@ -8,12 +8,11 @@ import java.util.concurrent.TimeUnit;
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
-import org.owntracks.android.activities.ActivityMap;
+import org.owntracks.android.data.repos.ContactsRepo;
 import org.owntracks.android.db.Dao;
 import org.owntracks.android.injection.components.AppComponent;
 import org.owntracks.android.injection.components.DaggerAppComponent;
 import org.owntracks.android.injection.modules.AppModule;
-import org.owntracks.android.model.ContactsViewModel;
 import org.owntracks.android.model.FusedContact;
 import org.owntracks.android.services.ServiceProxy;
 import org.owntracks.android.support.ContactImageProvider;
@@ -23,6 +22,7 @@ import org.owntracks.android.support.GeocodingProvider;
 import org.owntracks.android.support.Parser;
 import org.owntracks.android.support.Preferences;
 import org.owntracks.android.support.StatisticsProvider;
+import org.owntracks.android.ui.map.MapActivity;
 
 import android.app.Activity;
 import android.app.Application;
@@ -42,7 +42,6 @@ import android.preference.PreferenceManager;
 import android.provider.Settings.Secure;
 import android.text.format.DateUtils;
 
-import io.realm.Realm;
 import timber.log.Timber;
 
 public class App extends Application  {
@@ -54,7 +53,6 @@ public class App extends Application  {
     private static Handler backgroundHandler;
 
     //private static HashMap<String, FusedContact> fusedContacts;
-    private static ContactsViewModel contactsViewModel;
     private static Activity currentActivity;
     private static boolean inForeground;
     private static int runningActivities = 0;
@@ -67,7 +65,7 @@ public class App extends Application  {
 
 
     public static ObservableMap<String, FusedContact> getFusedContacts() {
-        return sAppComponent.contactsRepo().getAll();
+        return sAppComponent.contactsRepo().getAllAsMap();
     }
 
     @Override
@@ -98,7 +96,6 @@ public class App extends Application  {
 
         backgroundHandler = new Handler(mServiceHandlerThread.getLooper());
         mainHandler = new Handler(getMainLooper());
-        contactsViewModel =  new ContactsViewModel();
 
         checkFirstStart();
 
@@ -128,12 +125,14 @@ public class App extends Application  {
 
     public static AppComponent getAppComponent() { return sAppComponent; }
 
-    public static Realm getRealm() { return sAppComponent.realm(); }
-
     public static Resources getRes() { return sInstance.getResources(); }
 
     public static EventBus getEventBus() {
         return sAppComponent.eventBus();
+    }
+
+    public static ContactsRepo getContactsRepo() {
+        return sAppComponent.contactsRepo();
     }
 
     public static void enableForegroundBackgroundDetection() {
@@ -151,42 +150,11 @@ public class App extends Application  {
         return sAppComponent.contactsRepo().getById(topic);
     }
 
-    public static ContactsViewModel getContactsViewModel() {
-        return contactsViewModel;
-    }
 
-
-    public static void addFusedContact(final FusedContact c) {
-        //fusedContacts.put(c.getId(), c);
-        sAppComponent.contactsRepo().put(c.getId(), c);
-
-        postOnMainHandler(new Runnable() {
-            @Override
-            public void run() {
-                contactsViewModel.items.add(c);
-            }
-        });
-        App.getEventBus().post(c);
-    }
-
-    public static void updateFusedContact(FusedContact c) {
-        App.getEventBus().post(c);
-    }
-
-
-    public static void clearFusedContacts() {
-        sAppComponent.contactsRepo().clearAll();
-        postOnMainHandler(new Runnable() {
-            @Override
-            public void run() {
-                contactsViewModel.items.clear();
-            }
-        });
-    }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onEventMainThread(Events.ModeChanged e) {
-        clearFusedContacts();
+        getContactsRepo().clearAll();
         ContactImageProvider.invalidateCache();
     }
 
@@ -231,7 +199,7 @@ public class App extends Application  {
 
     @Subscribe
     public void onEvent(Events.BrokerChanged e) {
-        clearFusedContacts();
+        getContactsRepo().clearAll();
     }
 
     private static void onEnterForeground() {
@@ -272,7 +240,7 @@ public class App extends Application  {
     }
 
     public static Class<?> getRootActivityClass(){
-        return ActivityMap.class;
+        return MapActivity.class;
     }
 
 
