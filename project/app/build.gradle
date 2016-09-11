@@ -122,6 +122,8 @@ dependencies {
     compile 'com.obsez.android.lib.filechooser:filechooser:1.1.2'
     compile 'com.amulyakhare:com.amulyakhare.textdrawable:1.0.1'
 
+    compile "ch.acra:acra:4.8.5"
+
     apt 'com.google.guava:guava:19.0' // needed by Dagger
     apt "com.google.dagger:dagger-compiler:${daggerVersion}"
     compile "com.google.dagger:dagger:${daggerVersion}"
