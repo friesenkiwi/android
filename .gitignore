@@ -24,7 +24,6 @@ project/proguard/
 
 # Android Studio workspace
 project/.idea
-project/.idea
 project/*.iml
 project/app/*.iml
 
